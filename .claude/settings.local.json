@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(nvm ls:*)",
+      "Bash(nvm install:*)",
+      "Bash(npx create-vite:*)",
+      "Bash(shopt -s dotglob)",
+      "Bash(mv wheel-tracker/* .)",
+      "Bash(rmdir wheel-tracker:*)",
+      "Bash(mv wheel-tracker/.gitignore .)",
+      "Bash(rm -rf wheel-tracker)"
+    ]
+  }
+}
