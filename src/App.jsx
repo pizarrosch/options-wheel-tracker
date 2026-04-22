@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, ReferenceLine, Area, AreaChart } from "recharts";
 import Papa from "papaparse";
 
 const B  = '#0d1117', C = '#161b22', D = '#30363d', T = '#e6edf3', M = '#8b949e';
@@ -24,85 +24,77 @@ const inputStyle= { background: B, border: `1px solid ${D}`, borderRadius: 6, pa
 const labelStyle= { fontSize: 11, color: M, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, display: 'block' };
 const btnStyle  = (bg, cl='#fff') => ({ background: bg, border: 'none', color: cl, padding: '8px 18px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 });
 
-// ── Yahoo Finance fetch with multiple fallbacks
-async function yahooFetch(url) {
-    const proxies = [
-        u => u,                                                          // direct
-        u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-        u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-        u => `https://thingproxy.freeboard.io/fetch/${u}`,
-    ];
-    for (const proxy of proxies) {
-        try {
-            const res = await fetch(proxy(url), { headers: { 'Accept': 'application/json' } });
-            if (!res.ok) continue;
-            const data = await res.json();
-            if (data) return data;
-        } catch {}
-    }
-    return null;
-}
-
+// ── Yahoo Finance
 async function fetchMarketData(positions, setLog) {
     const open = positions.filter(p => p.status === 'Open');
     if (!open.length) return { updated: positions, log: 'No open positions.' };
     const updated = positions.map(p => ({ ...p }));
     const tickers = [...new Set(open.map(p => p.ticker))];
     const logs = [];
-
     for (const ticker of tickers) {
         const tickPos = open.filter(p => p.ticker === ticker);
-        setLog(`Fetching ${ticker}…`);
-
-        // ── Stock price
-        const chartData = await yahooFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`);
-        const price = chartData?.chart?.result?.[0]?.meta?.regularMarketPrice;
+        setLog(`Fetching ${ticker} price…`);
+        let price = null;
+        const priceUrl = `/yf/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+        try {
+            const res = await fetch(priceUrl);
+            if (res.ok) { const data = await res.json(); price = data?.chart?.result?.[0]?.meta?.regularMarketPrice; }
+        } catch {}
         if (price) {
             tickPos.filter(p => p.phase === 'Stock').forEach(p => {
                 const i = updated.findIndex(x => x.id === p.id);
-                if (i !== -1) { updated[i].currentMark = price.toFixed(2); }
+                if (i !== -1) updated[i].currentMark = price.toFixed(2);
             });
-            logs.push(`${ticker} price: ${price.toFixed(2)}`);
-        } else {
-            logs.push(`${ticker}: price fetch failed`);
-        }
-
-        // ── Options greeks per expiry
-        const optPos = tickPos.filter(p => p.phase !== 'Stock' && p.expiry);
-        const expiries = [...new Set(optPos.map(p => p.expiry))];
-
-        for (const expiry of expiries) {
-            const ts = Math.floor(new Date(expiry + 'T21:00:00Z').getTime() / 1000);
-            const data = await yahooFetch(`https://query1.finance.yahoo.com/v7/finance/options/${ticker}?date=${ts}`);
-            const chain = data?.optionChain?.result?.[0]?.options?.[0];
-            const puts  = chain?.puts  || [];
-            const calls = chain?.calls || [];
-
-            if (!chain) { logs.push(`${ticker} ${expiry}: no options chain`); continue; }
-
-            optPos.filter(p => p.expiry === expiry).forEach(p => {
-                const strike = parseFloat(p.strike);
-                const list   = p.phase === 'CSP' ? puts : calls;
-                const match  = list.find(c => Math.abs(c.strike - strike) < 0.51);
-                if (!match) { logs.push(`${ticker} ${strike}: no match in chain`); return; }
-                const i = updated.findIndex(x => x.id === p.id);
-                if (i === -1) return;
-                const mid = (match.bid != null && match.ask != null) ? ((match.bid + match.ask) / 2).toFixed(2) : updated[i].currentMark;
-                const hasGreeks = match.delta != null;
-                updated[i] = {
-                    ...updated[i],
-                    currentMark: mid,
-                    delta: hasGreeks ? match.delta.toFixed(3) : updated[i].delta,
-                    theta: hasGreeks ? match.theta.toFixed(3) : updated[i].theta,
-                    vega:  hasGreeks ? match.vega.toFixed(3)  : updated[i].vega,
-                };
-                logs.push(`${ticker} ${strike}: mid=${mid}${hasGreeks ? ` Δ${match.delta?.toFixed(2)}` : ' (no greeks from Yahoo)'}`);
-            });
-        }
+            logs.push(`${ticker}: $${price.toFixed(2)} ✓`);
+        } else { logs.push(`${ticker}: price unavailable`); }
+        const optCount = tickPos.filter(p => p.phase !== 'Stock').length;
+        if (optCount > 0) logs.push(`${ticker} options: enter greeks manually (Tradier pending)`);
     }
     return { updated, log: logs.join(' · ') || 'Done' };
 }
 
+// ── Analytics helpers
+const RANGES = ['1D','1W','MTD','3M','6M','YTD','1Y','All'];
+function rangeStart(key) {
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth();
+    switch (key) {
+        case '1D': return new Date(now - 86400000);
+        case '1W': return new Date(now - 7*86400000);
+        case 'MTD': return new Date(y, m, 1);
+        case '3M': return new Date(y, m-3, 1);
+        case '6M': return new Date(y, m-6, 1);
+        case 'YTD': return new Date(y, 0, 1);
+        case '1Y': return new Date(y-1, m, now.getDate());
+        default: return new Date('2000-01-01');
+    }
+}
+
+function buildPnlSeries(positions, range) {
+    const start = rangeStart(range);
+    const closed = positions.filter(p => p.status !== 'Open' && p.closeDate);
+    const inRange = closed.filter(p => new Date(p.closeDate) >= start);
+    if (!inRange.length) return [];
+    // group by closeDate
+    const byDate = {};
+    inRange.forEach(p => {
+        const d = p.closeDate;
+        byDate[d] = (byDate[d] || 0) + realPnl(p);
+    });
+    const dates = Object.keys(byDate).sort();
+    let cum = 0;
+    return dates.map(date => { cum += byDate[date]; return { date, daily: byDate[date], cumulative: parseFloat(cum.toFixed(2)) }; });
+}
+
+function buildBarSeries(positions, range) {
+    const start = rangeStart(range);
+    const closed = positions.filter(p => p.status !== 'Open' && p.closeDate && new Date(p.closeDate) >= start);
+    const byDate = {};
+    closed.forEach(p => { const d = p.closeDate; byDate[d] = (byDate[d]||0) + realPnl(p); });
+    return Object.entries(byDate).sort(([a],[b])=>a.localeCompare(b)).map(([date, pnl]) => ({ date, pnl: parseFloat(pnl.toFixed(2)) }));
+}
+
+// ── Shared UI
 function StatCard({ label, val, color, sub }) {
     return (
         <div style={cardStyle}>
@@ -112,7 +104,6 @@ function StatCard({ label, val, color, sub }) {
         </div>
     );
 }
-
 function GreeksCard({ delta, theta, vega }) {
     const row = (lbl, val, col) => (
         <div style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:`1px solid ${D}` }}>
@@ -129,7 +120,6 @@ function GreeksCard({ delta, theta, vega }) {
         </div>
     );
 }
-
 function PhaseChart({ data }) {
     if (!data.length) return <div style={{ ...cardStyle, display:'flex', alignItems:'center', justifyContent:'center', height:220, color:M, fontSize:13 }}>No open positions</div>;
     return (
@@ -147,7 +137,6 @@ function PhaseChart({ data }) {
         </div>
     );
 }
-
 function TickerChart({ data }) {
     if (!data.length) return <div style={{ ...cardStyle, display:'flex', alignItems:'center', justifyContent:'center', height:220, color:M, fontSize:13 }}>No capital deployed</div>;
     return (
@@ -158,15 +147,12 @@ function TickerChart({ data }) {
                     <XAxis type="number" tick={{ fill:M, fontSize:11 }} tickFormatter={v => '$'+(v/1000).toFixed(0)+'k'} axisLine={false} tickLine={false} />
                     <YAxis type="category" dataKey="ticker" tick={{ fill:T, fontSize:12, fontWeight:600 }} width={52} axisLine={false} tickLine={false} />
                     <Tooltip formatter={v => ['$'+v.toLocaleString('en-US',{maximumFractionDigits:0}), 'Capital']} contentStyle={{ background:C, border:`1px solid ${D}`, color:T, fontSize:12 }} />
-                    <Bar dataKey="capital" radius={[0,4,4,0]}>
-                        {data.map((_,i) => <Cell key={i} fill={TC[i%TC.length]} />)}
-                    </Bar>
+                    <Bar dataKey="capital" radius={[0,4,4,0]}>{data.map((_,i) => <Cell key={i} fill={TC[i%TC.length]} />)}</Bar>
                 </BarChart>
             </ResponsiveContainer>
         </div>
     );
 }
-
 function ExpirationsPanel({ data }) {
     return (
         <div style={cardStyle}>
@@ -209,6 +195,145 @@ const Sel = ({ label, k, opts, form, f }) => (
     </div>
 );
 
+// ── Analytics View
+function AnalyticsView({ positions }) {
+    const [range, setRange] = useState('MTD');
+    const series   = useMemo(() => buildPnlSeries(positions, range), [positions, range]);
+    const barSeries= useMemo(() => buildBarSeries(positions, range), [positions, range]);
+    const start    = rangeStart(range);
+
+    const closed   = positions.filter(p => p.status !== 'Open' && p.closeDate && new Date(p.closeDate) >= start);
+    const totPnl   = closed.reduce((s,p) => s + realPnl(p), 0);
+    const totPrem  = closed.reduce((s,p) => s + premTot(p), 0);
+    const wins     = closed.filter(p => realPnl(p) > 0).length;
+    const winRate  = closed.length ? wins/closed.length*100 : 0;
+    const bestDay  = barSeries.length ? Math.max(...barSeries.map(d=>d.pnl)) : 0;
+    const worstDay = barSeries.length ? Math.min(...barSeries.map(d=>d.pnl)) : 0;
+    const finalCum = series.length ? series[series.length-1].cumulative : 0;
+    const isPos    = finalCum >= 0;
+
+    const ttStyle  = { background:C, border:`1px solid ${D}`, color:T, fontSize:12, borderRadius:6 };
+
+    return (
+        <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+            {/* Range selector */}
+            <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                {RANGES.map(r => (
+                    <button key={r} onClick={() => setRange(r)} style={{
+                        padding:'6px 14px', borderRadius:6, border:`1px solid ${range===r ? BL : D}`,
+                        background: range===r ? BL+'22' : 'transparent', color: range===r ? BL : M,
+                        cursor:'pointer', fontSize:13, fontWeight: range===r ? 700 : 400
+                    }}>{r}</button>
+                ))}
+            </div>
+
+            {/* Summary cards */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+                <StatCard label={`Realized P&L (${range})`} val={CUR(totPnl)} color={totPnl>=0?G:R} />
+                <StatCard label="Win Rate" val={NUM(winRate,1)+'%'} color={winRate>=70?G:winRate>=50?YL:R} sub={`${wins} of ${closed.length} trades`} />
+                <StatCard label="Best Day" val={CUR(bestDay)} color={G} />
+                <StatCard label="Worst Day" val={CUR(worstDay)} color={R} />
+            </div>
+
+            {/* Cumulative P&L area chart */}
+            <div style={cardStyle}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                    <div style={labelStyle}>Cumulative P&L — {range}</div>
+                    <div style={{ fontFamily:'monospace', fontWeight:700, color:isPos?G:R, fontSize:15 }}>{CUR(finalCum)}</div>
+                </div>
+                {series.length === 0
+                    ? <div style={{ height:220, display:'flex', alignItems:'center', justifyContent:'center', color:M, fontSize:13 }}>No closed positions in this period.</div>
+                    : <ResponsiveContainer width="100%" height={220}>
+                        <AreaChart data={series} margin={{ left:10, right:10, top:4, bottom:4 }}>
+                            <defs>
+                                <linearGradient id="pnlGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%"  stopColor={isPos?G:R} stopOpacity={0.25}/>
+                                    <stop offset="95%" stopColor={isPos?G:R} stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke={D} />
+                            <XAxis dataKey="date" tick={{ fill:M, fontSize:10 }} axisLine={false} tickLine={false}
+                                   tickFormatter={d => { const dt=new Date(d); return `${dt.getMonth()+1}/${dt.getDate()}`; }} />
+                            <YAxis tick={{ fill:M, fontSize:11 }} axisLine={false} tickLine={false}
+                                   tickFormatter={v => '$'+v.toLocaleString('en-US',{maximumFractionDigits:0})} />
+                            <Tooltip contentStyle={ttStyle}
+                                     formatter={(v,n) => [CUR(v), n==='cumulative'?'Cumulative P&L':'Daily P&L']}
+                                     labelFormatter={d => new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} />
+                            <ReferenceLine y={0} stroke={D} strokeWidth={1.5} />
+                            <Area type="monotone" dataKey="cumulative" stroke={isPos?G:R} strokeWidth={2.5}
+                                  fill="url(#pnlGrad)" dot={{ fill:isPos?G:R, r:4, strokeWidth:0 }} activeDot={{ r:6 }} />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                }
+            </div>
+
+            {/* Daily P&L bar chart */}
+            <div style={cardStyle}>
+                <div style={labelStyle}>Daily P&L — {range}</div>
+                {barSeries.length === 0
+                    ? <div style={{ height:180, display:'flex', alignItems:'center', justifyContent:'center', color:M, fontSize:13 }}>No closed positions in this period.</div>
+                    : <ResponsiveContainer width="100%" height={180}>
+                        <BarChart data={barSeries} margin={{ left:10, right:10, top:4, bottom:4 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={D} vertical={false} />
+                            <XAxis dataKey="date" tick={{ fill:M, fontSize:10 }} axisLine={false} tickLine={false}
+                                   tickFormatter={d => { const dt=new Date(d); return `${dt.getMonth()+1}/${dt.getDate()}`; }} />
+                            <YAxis tick={{ fill:M, fontSize:11 }} axisLine={false} tickLine={false}
+                                   tickFormatter={v => '$'+v.toLocaleString('en-US',{maximumFractionDigits:0})} />
+                            <Tooltip contentStyle={ttStyle} formatter={v => [CUR(v), 'P&L']}
+                                     labelFormatter={d => new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} />
+                            <ReferenceLine y={0} stroke={D} />
+                            <Bar dataKey="pnl" radius={[3,3,0,0]}>
+                                {barSeries.map((e,i) => <Cell key={i} fill={e.pnl>=0?G:R} />)}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                }
+            </div>
+
+            {/* Closed trades in period */}
+            {closed.length > 0 && (
+                <div style={cardStyle}>
+                    <div style={labelStyle}>Closed Trades — {range} ({closed.length})</div>
+                    <div style={{ overflowX:'auto', marginTop:8 }}>
+                        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                            <thead>
+                            <tr style={{ borderBottom:`1px solid ${D}` }}>
+                                {['Ticker','Phase','Strike','Expiry','Premium/ct','Contracts','P&L','% Captured','Close Date'].map(h => (
+                                    <th key={h} style={{ padding:'8px 12px', textAlign:'left', color:M, fontWeight:600, fontSize:11, textTransform:'uppercase', letterSpacing:.6, whiteSpace:'nowrap' }}>{h}</th>
+                                ))}
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {closed.sort((a,b) => b.closeDate.localeCompare(a.closeDate)).map(pos => {
+                                const pnl = realPnl(pos);
+                                const pct = pos.premium && parseFloat(pos.premium) > 0 ? (pnl / premTot(pos)) * 100 : null;
+                                const pctCol = pct===null?M:pct>=90?G:pct>=50?YL:pct>=0?OR:R;
+                                return (
+                                    <tr key={pos.id} style={{ borderBottom:`1px solid ${D}22` }}
+                                        onMouseEnter={e=>e.currentTarget.style.background=D+'33'}
+                                        onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                                        <td style={{ padding:'8px 12px', fontWeight:700 }}>{pos.ticker}</td>
+                                        <td style={{ padding:'8px 12px' }}><span style={{ background:(PC[pos.phase]||M)+'22', color:PC[pos.phase]||M, padding:'2px 7px', borderRadius:4, fontSize:11 }}>{pos.phase}</span></td>
+                                        <td style={{ padding:'8px 12px', fontFamily:'monospace' }}>{pos.strike?'$'+pos.strike:'—'}</td>
+                                        <td style={{ padding:'8px 12px', color:M }}>{pos.expiry||'—'}</td>
+                                        <td style={{ padding:'8px 12px', fontFamily:'monospace', color:G }}>{pos.premium?'+$'+NUM(pos.premium):'—'}</td>
+                                        <td style={{ padding:'8px 12px', fontFamily:'monospace' }}>{pos.contracts}</td>
+                                        <td style={{ padding:'8px 12px', fontFamily:'monospace', color:pnl>=0?G:R, fontWeight:600 }}>{CUR(pnl)}</td>
+                                        <td style={{ padding:'8px 12px', fontFamily:'monospace', color:pctCol, fontWeight:600 }}>{pct!==null?pct.toFixed(1)+'%':'—'}</td>
+                                        <td style={{ padding:'8px 12px', color:M }}>{pos.closeDate}</td>
+                                    </tr>
+                                );
+                            })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Main App
 export default function App() {
     const [positions, setPositions]     = useState([]);
     const [view, setView]               = useState('dashboard');
@@ -216,11 +341,11 @@ export default function App() {
     const [showImport, setShowImport]   = useState(false);
     const [form, setForm]               = useState(BLANK);
     const [editId, setEditId]           = useState(null);
+    const editIdRef                     = useRef(null);
     const [filter, setFilter]           = useState({ ticker:'', phase:'', status:'' });
     const [loaded, setLoaded]           = useState(false);
     const [csvText, setCsvText]         = useState('');
     const [csvErr, setCsvErr]           = useState('');
-    const editIdRef = useRef(null);
     const [refreshing, setRefreshing]   = useState(false);
     const [refreshLog, setRefreshLog]   = useState('');
     const [lastRefresh, setLastRefresh] = useState(null);
@@ -234,7 +359,6 @@ export default function App() {
             setLoaded(true);
         })();
     }, []);
-
     useEffect(() => {
         if (!loaded) return;
         try { window.storage.set('wheel_v2', JSON.stringify(positions)); } catch {
@@ -246,13 +370,8 @@ export default function App() {
         setRefreshing(true); setRefreshErr(''); setRefreshLog('Starting…');
         try {
             const { updated, log } = await fetchMarketData(positions, setRefreshLog);
-            setPositions(updated);
-            setLastRefresh(new Date().toLocaleTimeString());
-            setRefreshLog(log);
-        } catch(e) {
-            setRefreshErr('Error: ' + e.message);
-            setRefreshLog('');
-        }
+            setPositions(updated); setLastRefresh(new Date().toLocaleTimeString()); setRefreshLog(log);
+        } catch(e) { setRefreshErr('Error: ' + e.message); setRefreshLog(''); }
         setRefreshing(false);
     }
 
@@ -282,19 +401,11 @@ export default function App() {
         if (!form.ticker.trim()) return;
         const id = editIdRef.current;
         const pos = { ...form, ticker: form.ticker.toUpperCase(), id: id || Date.now().toString() };
-        setPositions(prev => id ? prev.map(p => p.id === id ? pos : p) : [...prev, pos]);
-        editIdRef.current = null;
-        setForm(BLANK); setEditId(null); setShowForm(false);
+        setPositions(prev => id ? prev.map(p => p.id===id ? pos : p) : [...prev, pos]);
+        editIdRef.current = null; setForm(BLANK); setEditId(null); setShowForm(false);
     }
-
-    function doEdit(pos) {
-        editIdRef.current = pos.id;
-        setEditId(pos.id);
-        setForm({ ...BLANK, ...pos });
-        setShowForm(true);
-    }
+    function doEdit(pos) { editIdRef.current = pos.id; setEditId(pos.id); setForm({ ...BLANK, ...pos }); setShowForm(true); }
     function doDelete(id) { if (confirm('Delete this position?')) setPositions(prev => prev.filter(p => p.id!==id)); }
-
     function doImport() {
         try {
             const result = Papa.parse(csvText.trim(), { header: true, skipEmptyLines: true });
@@ -320,7 +431,6 @@ export default function App() {
             <span>{icon}</span>{label}
         </button>
     );
-
     const modal = (title, onClose, children, width=640) => (
         <div style={{ position:'fixed', inset:0, background:'#000b', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100 }}>
             <div style={{ background:C, border:`1px solid ${D}`, borderRadius:12, padding:28, width, maxWidth:'95vw', maxHeight:'90vh', overflowY:'auto' }}>
@@ -343,8 +453,9 @@ export default function App() {
                 </div>
                 {navBtn('dashboard', '📊', 'Dashboard')}
                 {navBtn('positions', '📋', 'Positions')}
+                {navBtn('analytics', '📈', 'Analytics')}
                 <div style={{ height:1, background:D, margin:'8px 2px' }} />
-                <button onClick={() => { setForm(BLANK); setEditId(null); setShowForm(true); }}
+                <button onClick={() => { setForm(BLANK); setEditId(null); editIdRef.current=null; setShowForm(true); }}
                         style={{ display:'flex', alignItems:'center', gap:9, padding:'9px 14px', background:BL+'22', border:`1px solid ${BL}44`, borderRadius:6, color:BL, cursor:'pointer', fontSize:13, fontWeight:600 }}>
                     ＋ Add Trade
                 </button>
@@ -352,23 +463,15 @@ export default function App() {
                         style={{ display:'flex', alignItems:'center', gap:9, padding:'9px 14px', background:'transparent', border:`1px solid ${D}`, borderRadius:6, color:M, cursor:'pointer', fontSize:13 }}>
                     ⬆ Import CSV
                 </button>
-
-                {/* Refresh block */}
                 <div style={{ height:1, background:D, margin:'8px 2px' }} />
                 <button onClick={doRefresh} disabled={refreshing}
                         style={{ display:'flex', alignItems:'center', gap:9, padding:'9px 14px', background: refreshing ? D : G+'22', border:`1px solid ${G}44`, borderRadius:6, color: refreshing ? M : G, cursor: refreshing ? 'wait' : 'pointer', fontSize:13, fontWeight:600, opacity: refreshing ? 0.7 : 1 }}>
                     {refreshing ? '⏳' : '⚡'} {refreshing ? 'Refreshing…' : 'Refresh Data'}
                 </button>
-                {refreshLog && !refreshErr && (
-                    <div style={{ fontSize:10, color: refreshLog.includes('Done') ? G : M, padding:'2px 6px', textAlign:'center' }}>{refreshLog}</div>
-                )}
+                {refreshLog && !refreshErr && <div style={{ fontSize:10, color: refreshLog.includes('✓') ? G : M, padding:'2px 6px', textAlign:'center' }}>{refreshLog}</div>}
                 {refreshErr && <div style={{ fontSize:10, color:R, padding:'2px 6px' }}>{refreshErr}</div>}
-                {lastRefresh && !refreshing && (
-                    <div style={{ fontSize:10, color:M, padding:'2px 6px', textAlign:'center' }}>Updated {lastRefresh}</div>
-                )}
-                <div style={{ fontSize:10, color:D, padding:'4px 6px', lineHeight:1.4, marginTop:4 }}>
-                    via Yahoo Finance · Tradier coming soon
-                </div>
+                {lastRefresh && !refreshing && <div style={{ fontSize:10, color:M, padding:'2px 6px', textAlign:'center' }}>Updated {lastRefresh}</div>}
+                <div style={{ fontSize:10, color:D, padding:'4px 6px', lineHeight:1.4, marginTop:4 }}>via Yahoo Finance · Tradier coming soon</div>
             </div>
 
             {/* Content */}
@@ -396,11 +499,9 @@ export default function App() {
                 {view === 'positions' && (
                     <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
                         <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
-                            <input placeholder="Search ticker…" value={filter.ticker} onChange={e => setFilter(f=>({...f,ticker:e.target.value}))}
-                                   style={{ ...inputStyle, width:140 }} />
+                            <input placeholder="Search ticker…" value={filter.ticker} onChange={e => setFilter(f=>({...f,ticker:e.target.value}))} style={{ ...inputStyle, width:140 }} />
                             {['phase','status'].map(key => (
-                                <select key={key} value={filter[key]} onChange={e => setFilter(f=>({...f,[key]:e.target.value}))}
-                                        style={{ ...inputStyle, width:130, cursor:'pointer' }}>
+                                <select key={key} value={filter[key]} onChange={e => setFilter(f=>({...f,[key]:e.target.value}))} style={{ ...inputStyle, width:130, cursor:'pointer' }}>
                                     <option value="">All {key==='phase'?'Phases':'Status'}</option>
                                     {(key==='phase'?['CSP','CC','Stock']:['Open','Expired','Assigned','Closed']).map(o=><option key={o}>{o}</option>)}
                                 </select>
@@ -417,11 +518,13 @@ export default function App() {
                                 </tr>
                                 </thead>
                                 <tbody>
-                                {filtered.length === 0 && <tr><td colSpan={11} style={{ padding:40, textAlign:'center', color:M }}>No positions. Add a trade or import CSV.</td></tr>}
+                                {filtered.length === 0 && <tr><td colSpan={12} style={{ padding:40, textAlign:'center', color:M }}>No positions. Add a trade or import CSV.</td></tr>}
                                 {filtered.map(pos => {
                                     const dteVal = pos.phase!=='Stock' ? DTE(pos.expiry) : null;
                                     const dteCol = dteVal===null?M:dteVal<=0?R:dteVal<=7?R:dteVal<=21?YL:G;
                                     const pnl    = pos.status==='Open' ? unrlPnl(pos) : realPnl(pos);
+                                    const pct    = pos.status!=='Open' && pos.premium && parseFloat(pos.premium)>0 ? (realPnl(pos)/premTot(pos))*100 : null;
+                                    const pctCol = pct===null?M:pct>=90?G:pct>=50?YL:pct>=0?OR:R;
                                     return (
                                         <tr key={pos.id} style={{ borderBottom:`1px solid ${D}22` }}
                                             onMouseEnter={e=>e.currentTarget.style.background=D+'33'}
@@ -435,12 +538,7 @@ export default function App() {
                                             <td style={{ padding:'9px 14px', fontFamily:'monospace', color:M }}>{pos.currentMark?'$'+NUM(pos.currentMark):'—'}</td>
                                             <td style={{ padding:'9px 14px', fontFamily:'monospace' }}>{pos.contracts}</td>
                                             <td style={{ padding:'9px 14px', fontFamily:'monospace', color:pnl>=0?G:R, fontWeight:600 }}>{pnl!==0?CUR(pnl):'—'}</td>
-                                            <td style={{ padding:'9px 14px', fontFamily:'monospace' }}>{(() => {
-                                                if (pos.phase === 'Stock' || pos.status === 'Open' || !pos.premium || parseFloat(pos.premium) === 0) return '—';
-                                                const pct = (realPnl(pos) / premTot(pos)) * 100;
-                                                const col = pct >= 90 ? G : pct >= 50 ? YL : pct >= 0 ? OR : R;
-                                                return <span style={{ color: col, fontWeight: 600 }}>{pct.toFixed(1)}%</span>;
-                                            })()}</td>
+                                            <td style={{ padding:'9px 14px', fontFamily:'monospace', color:pctCol, fontWeight:600 }}>{pct!==null?pct.toFixed(1)+'%':'—'}</td>
                                             <td style={{ padding:'9px 14px' }}><span style={{ background:(SC[pos.status]||M)+'22', color:SC[pos.status]||M, padding:'2px 8px', borderRadius:4, fontSize:11 }}>{pos.status}</span></td>
                                             <td style={{ padding:'9px 14px' }}>
                                                 <div style={{ display:'flex', gap:6 }}>
@@ -456,11 +554,12 @@ export default function App() {
                         </div>
                     </div>
                 )}
+
+                {view === 'analytics' && <AnalyticsView positions={positions} />}
             </div>
 
-            {showForm && modal(editId ? 'Edit Trade' : 'Add Trade', () => { setShowForm(false); setForm(BLANK); setEditId(null); }, (
+            {showForm && modal(editId ? 'Edit Trade' : 'Add Trade', () => { setShowForm(false); setForm(BLANK); setEditId(null); editIdRef.current=null; }, (
                 <>
-                    {/* Format hints */}
                     <div style={{ background:BL+'11', border:`1px solid ${BL}33`, borderRadius:6, padding:'10px 14px', marginBottom:16, fontSize:12, color:M, lineHeight:1.7 }}>
                         💡 <strong style={{color:T}}>Format guide:</strong> Premium = per-share price (e.g. <code style={{color:BL}}>1.50</code>, app ×100 auto) · Delta = position delta (CSP short → positive e.g. <code style={{color:BL}}>0.25</code>) · Theta = positive for short options · Vega = negative for short options
                     </div>
@@ -487,7 +586,7 @@ export default function App() {
                         </div>
                     </div>
                     <div style={{ display:'flex', justifyContent:'flex-end', gap:10, marginTop:20 }}>
-                        <button onClick={()=>{setShowForm(false);setForm(BLANK);setEditId(null);}} style={{ background:'none', border:`1px solid ${D}`, color:M, padding:'8px 18px', borderRadius:6, cursor:'pointer' }}>Cancel</button>
+                        <button onClick={()=>{setShowForm(false);setForm(BLANK);setEditId(null);editIdRef.current=null;}} style={{ background:'none', border:`1px solid ${D}`, color:M, padding:'8px 18px', borderRadius:6, cursor:'pointer' }}>Cancel</button>
                         <button onClick={submit} style={btnStyle(BL)}>{editId?'Update':'Add Trade'}</button>
                     </div>
                 </>
