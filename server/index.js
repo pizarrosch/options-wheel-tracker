@@ -1,0 +1,65 @@
+import express from 'express';
+import pg from 'pg';
+import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const { Pool } = pg;
+const app  = express();
+const PORT = process.env.PORT || 3000;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// ── DB
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false });
+
+async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS portfolio (
+      id          TEXT PRIMARY KEY DEFAULT 'default',
+      positions   JSONB NOT NULL DEFAULT '[]'::jsonb,
+      updated_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+    INSERT INTO portfolio (id, positions)
+    VALUES ('default', '[]')
+    ON CONFLICT (id) DO NOTHING;
+  `);
+  console.log('DB ready');
+}
+
+// ── Middleware
+app.use(cors());
+app.use(express.json({ limit: '2mb' }));
+
+// ── API routes
+app.get('/api/positions', async (req, res) => {
+  try {
+    const result = await pool.query(`SELECT positions FROM portfolio WHERE id = 'default'`);
+    res.json({ positions: result.rows[0]?.positions || [] });
+  } catch(e) {
+    console.error(e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/positions', async (req, res) => {
+  try {
+    const { positions } = req.body;
+    await pool.query(
+      `INSERT INTO portfolio (id, positions, updated_at)
+       VALUES ('default', $1, NOW())
+       ON CONFLICT (id) DO UPDATE SET positions = $1, updated_at = NOW()`,
+      [JSON.stringify(positions)]
+    );
+    res.json({ ok: true });
+  } catch(e) {
+    console.error(e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Serve React build
+app.use(express.static(path.join(__dirname, '../public')));
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
+
+// ── Start
+initDb().then(() => app.listen(PORT, () => console.log(`Server running on :${PORT}`)));

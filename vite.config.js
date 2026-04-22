@@ -5,10 +5,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/yf': {
-        target: 'https://query1.finance.yahoo.com',
+      '/api': 'http://localhost:3000',
+      '/tradier': {
+        target: 'https://api.tradier.com',
         changeOrigin: true,
-        rewrite: path => path.replace(/^\/yf/, ''),
+        rewrite: path => path.replace(/^\/tradier/, ''),
+        headers: { 'Accept': 'application/json' }
       }
     }
   }
