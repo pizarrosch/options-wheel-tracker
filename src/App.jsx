@@ -24,15 +24,14 @@ const inputStyle= { background: B, border: `1px solid ${D}`, borderRadius: 6, pa
 const labelStyle= { fontSize: 11, color: M, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, display: 'block' };
 const btnStyle  = (bg, cl='#fff') => ({ background: bg, border: 'none', color: cl, padding: '8px 18px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 });
 
-// ── Tradier API
-async function fetchMarketData(positions, setLog, apiKey) {
-    if (!apiKey) return { updated: positions, log: 'No API key set. Add your Tradier key in settings.' };
+// ── Tradier API — key is injected server-side, no key needed in browser
+async function fetchMarketData(positions, setLog) {
     const open = positions.filter(p => p.status === 'Open');
     if (!open.length) return { updated: positions, log: 'No open positions.' };
     const updated = positions.map(p => ({ ...p }));
     const tickers = [...new Set(open.map(p => p.ticker))];
     const logs = [];
-    const headers = { 'Authorization': `Bearer ${apiKey}`, 'Accept': 'application/json' };
+    const headers = { 'Accept': 'application/json' };
     
     // ── Batch stock quotes
     setLog(`Fetching quotes…`);
@@ -385,8 +384,6 @@ export default function App() {
     const [refreshLog, setRefreshLog]   = useState('');
     const [lastRefresh, setLastRefresh] = useState(null);
     const [refreshErr, setRefreshErr]   = useState('');
-    const [apiKey, setApiKey]           = useState(() => { try { return localStorage.getItem('tradier_key') || ''; } catch { return ''; } });
-    const [showKeyInput, setShowKeyInput] = useState(false);
     
     useEffect(() => {
         fetch('/api/positions')
@@ -409,17 +406,10 @@ export default function App() {
         });
     }, [positions, loaded]);
     
-    function saveApiKey(key) {
-        setApiKey(key);
-        try { localStorage.setItem('tradier_key', key); } catch {}
-        setShowKeyInput(false);
-    }
-    
     async function doRefresh() {
-        if (!apiKey) { setShowKeyInput(true); return; }
         setRefreshing(true); setRefreshErr(''); setRefreshLog('Starting…');
         try {
-            const { updated, log } = await fetchMarketData(positions, setRefreshLog, apiKey);
+            const { updated, log } = await fetchMarketData(positions, setRefreshLog);
             setPositions(updated); setLastRefresh(new Date().toLocaleTimeString()); setRefreshLog(log);
         } catch(e) { setRefreshErr('Error: ' + e.message); setRefreshLog(''); }
         setRefreshing(false);
@@ -521,24 +511,6 @@ export default function App() {
               {refreshLog && !refreshErr && <div style={{ fontSize:10, color: refreshLog.includes('✓') ? G : M, padding:'2px 6px', textAlign:'center' }}>{refreshLog}</div>}
               {refreshErr && <div style={{ fontSize:10, color:R, padding:'2px 6px' }}>{refreshErr}</div>}
               {lastRefresh && !refreshing && <div style={{ fontSize:10, color:M, padding:'2px 6px', textAlign:'center' }}>Updated {lastRefresh}</div>}
-              <div style={{ height:1, background:D, margin:'8px 2px' }} />
-              {/* API Key */}
-              {showKeyInput ? (
-                <div style={{ display:'flex', flexDirection:'column', gap:6, padding:'4px 2px' }}>
-                    <div style={{ fontSize:10, color:M }}>Tradier API Key:</div>
-                    <input defaultValue={apiKey} id="keyinput" style={{ ...inputStyle, fontSize:11, padding:'6px 8px' }} placeholder="Paste token…" />
-                    <div style={{ display:'flex', gap:4 }}>
-                        <button onClick={() => saveApiKey(document.getElementById('keyinput').value.trim())}
-                                style={{ ...btnStyle(G,'#000'), fontSize:11, padding:'5px 10px', flex:1 }}>Save</button>
-                        <button onClick={() => setShowKeyInput(false)}
-                                style={{ background:'none', border:`1px solid ${D}`, color:M, padding:'5px 10px', borderRadius:6, cursor:'pointer', fontSize:11 }}>✕</button>
-                    </div>
-                </div>
-              ) : (
-                <button onClick={() => setShowKeyInput(true)} style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 14px', background:'transparent', border:`1px solid ${D}`, borderRadius:6, color: apiKey ? G : YL, cursor:'pointer', fontSize:11 }}>
-                    {apiKey ? '🔑 Tradier connected' : '🔑 Set Tradier key'}
-                </button>
-              )}
           </div>
           
           {/* Content */}

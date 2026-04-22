@@ -15,14 +15,14 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process
 async function initDb() {
   try {
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS portfolio (
-        id          TEXT PRIMARY KEY DEFAULT 'default',
-        positions   JSONB NOT NULL DEFAULT '[]'::jsonb,
-        updated_at  TIMESTAMPTZ DEFAULT NOW()
-      );
-      INSERT INTO portfolio (id, positions)
-      VALUES ('default', '[]')
-      ON CONFLICT (id) DO NOTHING;
+        CREATE TABLE IF NOT EXISTS portfolio (
+                                                 id          TEXT PRIMARY KEY DEFAULT 'default',
+                                                 positions   JSONB NOT NULL DEFAULT '[]'::jsonb,
+                                                 updated_at  TIMESTAMPTZ DEFAULT NOW()
+            );
+        INSERT INTO portfolio (id, positions)
+        VALUES ('default', '[]')
+            ON CONFLICT (id) DO NOTHING;
     `);
     console.log('DB ready');
   } catch(e) {
@@ -36,16 +36,15 @@ async function initDb() {
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
-// ── Tradier proxy (replaces nginx proxy in production)
+// ── Tradier proxy — API key injected server-side from env var
 app.use('/tradier', async (req, res) => {
+  const key = process.env.TRADIER_KEY;
+  if (!key) return res.status(500).json({ error: 'TRADIER_KEY not set on server' });
   try {
     const url = `https://api.tradier.com${req.path}${req.url.includes('?') ? '?' + req.url.split('?')[1] : ''}`;
     const response = await fetch(url, {
       method: req.method,
-      headers: {
-        'Authorization': req.headers['authorization'] || '',
-        'Accept': 'application/json',
-      }
+      headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
     });
     const data = await response.json();
     res.json(data);
