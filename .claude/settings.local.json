@@ -8,7 +8,10 @@
       "Bash(mv wheel-tracker/* .)",
       "Bash(rmdir wheel-tracker:*)",
       "Bash(mv wheel-tracker/.gitignore .)",
-      "Bash(rm -rf wheel-tracker)"
+      "Bash(rm -rf wheel-tracker)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }
