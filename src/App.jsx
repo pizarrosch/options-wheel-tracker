@@ -357,7 +357,7 @@ export default function App() {
     const open   = positions.filter(p => p.status === 'Open');
     const closed = positions.filter(p => p.status !== 'Open');
     // Only count premium from closed/expired option positions (actually collected)
-    const totPremium  = closed.filter(p => p.phase !== 'Stock').reduce((s,p) => s + premTot(p), 0);
+    const totPremium  = closed.filter(p => p.phase !== 'Stock').reduce((s,p) => s + realPnl(p), 0);
     const totRealized = closed.reduce((s,p) => s + realPnl(p), 0);
     const totUnreal   = open.reduce((s,p) => s + unrlPnl(p), 0);
     const totCap      = open.reduce((s,p) => s + capRisk(p), 0);
