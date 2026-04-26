@@ -11,7 +11,8 @@
       "Bash(rm -rf wheel-tracker)",
       "Bash(git checkout *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(npm run *)"
     ]
   }
 }
