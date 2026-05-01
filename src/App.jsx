@@ -145,6 +145,22 @@ function buildBarSeries(positions, range) {
   closed.forEach(p => { byDate[p.closeDate] = (byDate[p.closeDate]||0) + realPnl(p); });
   return Object.entries(byDate).sort(([a],[b]) => a.localeCompare(b)).map(([date, pnl]) => ({ date, pnl: parseFloat(pnl.toFixed(2)) }));
 }
+function buildMonthlySeries(positions) {
+  const closed = positions.filter(p => p.status !== 'Open' && p.closeDate);
+  const byMonth = {};
+  closed.forEach(p => {
+    const key = p.closeDate.slice(0, 7);
+    if (!byMonth[key]) byMonth[key] = { pnl: 0, trades: 0 };
+    byMonth[key].pnl += realPnl(p);
+    byMonth[key].trades += 1;
+  });
+  return Object.keys(byMonth).sort().map(key => ({
+    key,
+    label: new Date(key + '-15').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+    pnl: parseFloat(byMonth[key].pnl.toFixed(2)),
+    trades: byMonth[key].trades,
+  }));
+}
 
 function StatCard({ label, val, color, sub }) {
   return (
@@ -238,8 +254,9 @@ function PositionCard({ pos, onEdit, onDelete }) {
 
 function AnalyticsView({ positions, isMobile }) {
   const [range, setRange] = useState('MTD');
-  const series    = useMemo(() => buildPnlSeries(positions, range), [positions, range]);
-  const barSeries = useMemo(() => buildBarSeries(positions, range), [positions, range]);
+  const series        = useMemo(() => buildPnlSeries(positions, range), [positions, range]);
+  const barSeries     = useMemo(() => buildBarSeries(positions, range), [positions, range]);
+  const monthlySeries = useMemo(() => buildMonthlySeries(positions), [positions]);
   const start     = rangeStart(range);
   const closed    = positions.filter(p => p.status !== 'Open' && p.closeDate && new Date(p.closeDate) >= start);
   const totPnl    = closed.reduce((s, p) => s + realPnl(p), 0);
@@ -306,6 +323,40 @@ function AnalyticsView({ positions, isMobile }) {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+        }
+      </div>
+      <div style={cardStyle}>
+        <div style={labelStyle}>Monthly Income — All Time</div>
+        {monthlySeries.length === 0
+          ? <div style={{ height:140, display:'flex', alignItems:'center', justifyContent:'center', color:M, fontSize:13 }}>No closed positions yet.</div>
+          : <>
+            <ResponsiveContainer width="100%" height={isMobile?140:180}>
+              <BarChart data={monthlySeries} margin={{ left:isMobile?0:10, right:8, top:4, bottom:4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={D} vertical={false} />
+                <XAxis dataKey="label" tick={{ fill:M, fontSize:10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill:M, fontSize:10 }} axisLine={false} tickLine={false} width={isMobile?45:55} tickFormatter={v => '$'+v.toLocaleString('en-US',{maximumFractionDigits:0})} />
+                <Tooltip contentStyle={ttStyle} formatter={v => [CUR(v),'P&L']} labelFormatter={l => l} />
+                <ReferenceLine y={0} stroke={D} />
+                <Bar dataKey="pnl" radius={[3,3,0,0]}>
+                  {monthlySeries.map((e,i) => <Cell key={i} fill={e.pnl>=0?G:R} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div style={{ marginTop:12, borderTop:`1px solid ${D}`, paddingTop:10 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr auto auto', gap:'6px 16px', alignItems:'center' }}>
+                <span style={{ color:M, fontSize:11, fontWeight:600 }}>Month</span>
+                <span style={{ color:M, fontSize:11, fontWeight:600, textAlign:'right' }}>Trades</span>
+                <span style={{ color:M, fontSize:11, fontWeight:600, textAlign:'right' }}>P&L</span>
+                {[...monthlySeries].reverse().map(row => (
+                  <>
+                    <span key={row.key+'l'} style={{ fontSize:13 }}>{row.label}</span>
+                    <span key={row.key+'t'} style={{ fontFamily:'monospace', fontSize:13, color:M, textAlign:'right' }}>{row.trades}</span>
+                    <span key={row.key+'p'} style={{ fontFamily:'monospace', fontSize:13, fontWeight:600, color:row.pnl>=0?G:R, textAlign:'right' }}>{CUR(row.pnl)}</span>
+                  </>
+                ))}
+              </div>
+            </div>
+          </>
         }
       </div>
     </div>
