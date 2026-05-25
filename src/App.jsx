@@ -4,7 +4,7 @@ import Papa from "papaparse";
 
 const B  = '#0d1117', C = '#161b22', D = '#30363d', T = '#e6edf3', M = '#8b949e';
 const G  = '#3fb950', R = '#f85149', BL = '#58a6ff', PU = '#bc8cff', YL = '#e3b341', OR = '#ffa657';
-const PC = { CSP: BL, CC: PU, Stock: G };
+const PC = { CSP: BL, CC: PU, Stock: G, 'Put Spread': YL, 'Call Spread': OR };
 const TC = [BL, PU, G, YL, OR, '#38d9a9', '#f778ba', '#79c0ff'];
 const SC = { Open: G, Expired: M, Assigned: YL, Closed: BL };
 
@@ -14,14 +14,21 @@ const NUM     = (n, d=2) => n == null || n === '' ? '—' : (+n).toLocaleString(
 const CUR     = n => { if (n == null || n === '') return '—'; const v = +n; return (v >= 0 ? '+' : '−') + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
 const TODAY   = () => new Date().toISOString().split('T')[0];
 const premTot = p => (parseFloat(p.premium)||0) * (parseInt(p.contracts)||1) * MUL(p);
+const isSpread = p => p.phase === 'Put Spread' || p.phase === 'Call Spread';
+const spreadMaxRisk = p => {
+  const width = Math.abs((parseFloat(p.strike)||0) - (parseFloat(p.longStrike)||0));
+  return (width - (parseFloat(p.premium)||0)) * (parseInt(p.contracts)||1) * 100;
+};
 const capRisk = p => {
   if (p.status !== 'Open') return 0;
   if (p.phase === 'CSP') return (parseFloat(p.strike)||0) * (parseInt(p.contracts)||1) * 100;
+  if (isSpread(p)) return spreadMaxRisk(p);
   if (p.phase === 'Stock') return (parseFloat(p.costBasis)||0) * (parseInt(p.shares)||0);
   return 0;
 };
 const capAtOpen = p => {
   if (p.phase === 'CSP' || p.phase === 'CC') return (parseFloat(p.strike)||0) * (parseInt(p.contracts)||1) * 100;
+  if (isSpread(p)) return spreadMaxRisk(p);
   if (p.phase === 'Stock') return (parseFloat(p.costBasis)||0) * (parseInt(p.shares)||0);
   return 0;
 };
@@ -49,7 +56,7 @@ const daysHeld = p => {
   return Math.floor((end - new Date(p.openDate)) / 86400000);
 };
 
-const BLANK = { ticker:'', phase:'CSP', strike:'', expiry:'', premium:'', contracts:'1', openDate:TODAY(), closeDate:'', status:'Open', closePrice:'', currentMark:'', delta:'', theta:'', vega:'', notes:'', shares:'', costBasis:'' };
+const BLANK = { ticker:'', phase:'CSP', strike:'', longStrike:'', expiry:'', premium:'', contracts:'1', openDate:TODAY(), closeDate:'', status:'Open', closePrice:'', currentMark:'', delta:'', theta:'', vega:'', notes:'', shares:'', costBasis:'' };
 const inputStyle = { background: B, border: `1px solid ${D}`, borderRadius: 6, padding: '8px 10px', color: T, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' };
 const labelStyle = { fontSize: 11, color: M, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, display: 'block' };
 const btnStyle   = (bg, cl='#fff') => ({ background: bg, border: 'none', color: cl, padding: '8px 18px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 });
@@ -89,7 +96,7 @@ async function fetchMarketData(positions, setLog) {
     });
   } catch(e) { logs.push(`Quotes error: ${e.message}`); }
   
-  const optPositions = open.filter(p => p.phase !== 'Stock' && p.expiry);
+  const optPositions = open.filter(p => p.phase !== 'Stock' && p.phase !== 'Put Spread' && p.phase !== 'Call Spread' && p.expiry);
   const pairs = [...new Map(optPositions.map(p => [`${p.ticker}|${p.expiry}`, { ticker: p.ticker, expiry: p.expiry }])).values()];
   for (const { ticker, expiry } of pairs) {
     setLog(`Fetching ${ticker} ${expiry}…`);
@@ -237,7 +244,7 @@ function PositionCard({ pos, onEdit, onDelete }) {
         </div>
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
-        {pos.strike     && <div><div style={labelStyle}>Strike</div><div style={{ fontFamily:'monospace' }}>${pos.strike}</div></div>}
+        {pos.strike     && <div><div style={labelStyle}>{isSpread(pos) ? 'Short/Long' : 'Strike'}</div><div style={{ fontFamily:'monospace' }}>{isSpread(pos) && pos.longStrike ? `$${pos.strike}/$${pos.longStrike}` : '$'+pos.strike}</div></div>}
         {pos.expiry     && <div><div style={labelStyle}>Expiry</div><div style={{ color:M, fontSize:12 }}>{pos.expiry}</div></div>}
         {dteVal !== null && <div><div style={labelStyle}>DTE</div><div style={{ color:dteCol, fontFamily:'monospace', fontWeight:600 }}>{dteVal <= 0 ? 'EXP' : dteVal+'d'}</div></div>}
         {pos.premium    && <div><div style={labelStyle}>Premium</div><div style={{ fontFamily:'monospace', color:G }}>+${NUM(pos.premium)}</div></div>}
@@ -418,7 +425,7 @@ export default function App() {
     const netDelta    = open.reduce((s,p) => s + (parseFloat(p.delta)||0), 0);
     const netTheta    = open.reduce((s,p) => s + (parseFloat(p.theta)||0), 0);
     const netVega     = open.reduce((s,p) => s + (parseFloat(p.vega)||0), 0);
-    const phaseMix    = ['CSP','CC','Stock'].map(ph => ({ name:ph, value:open.filter(p=>p.phase===ph).length })).filter(x=>x.value>0);
+    const phaseMix    = ['CSP','CC','Stock','Put Spread','Call Spread'].map(ph => ({ name:ph, value:open.filter(p=>p.phase===ph).length })).filter(x=>x.value>0);
     const tickMap = {};
     open.forEach(p => { const cap=capRisk(p); tickMap[p.ticker]=(tickMap[p.ticker]||0)+cap; });
     const tickerConc  = Object.entries(tickMap).map(([ticker,capital]) => ({ticker,capital})).sort((a,b) => b.capital-a.capital);
@@ -443,7 +450,7 @@ export default function App() {
       const norm = h => h.trim().toLowerCase().replace(/[^a-z]/g,'');
       const mapped = result.data.map((row,i) => {
         const r = Object.fromEntries(Object.entries(row).map(([k,v]) => [norm(k),(v||'').trim()]));
-        return { ...BLANK, id:Date.now().toString()+i, ticker:(r.ticker||r.symbol||'').toUpperCase(), phase:r.phase||'CSP', strike:r.strike||'', expiry:r.expiry||r.expiration||'', premium:r.premium||r.credit||'', contracts:r.contracts||r.qty||'1', openDate:r.opendate||r.date||TODAY(), status:r.status||'Open', delta:r.delta||'', theta:r.theta||'', vega:r.vega||'', notes:r.notes||'', shares:r.shares||'', costBasis:r.costbasis||r.cost||'' };
+        return { ...BLANK, id:Date.now().toString()+i, ticker:(r.ticker||r.symbol||'').toUpperCase(), phase:r.phase||'CSP', strike:r.strike||'', longStrike:r.longstrike||r.longstk||'', expiry:r.expiry||r.expiration||'', premium:r.premium||r.credit||'', contracts:r.contracts||r.qty||'1', openDate:r.opendate||r.date||TODAY(), status:r.status||'Open', delta:r.delta||'', theta:r.theta||'', vega:r.vega||'', notes:r.notes||'', shares:r.shares||'', costBasis:r.costbasis||r.cost||'' };
       });
       setPositions(prev => [...prev,...mapped]); setCsvText(''); setCsvErr(''); setShowImport(false);
     } catch(e) { setCsvErr('Parse error: '+e.message); }
@@ -652,9 +659,9 @@ export default function App() {
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
               <input placeholder="Search ticker…" value={filter.ticker} onChange={e => setFilter(f=>({...f,ticker:e.target.value}))} style={{ ...inputStyle, width:130 }} />
-              <select value={filter.phase} onChange={e => setFilter(f=>({...f,phase:e.target.value}))} style={{ ...inputStyle, width:120, cursor:'pointer' }}>
+              <select value={filter.phase} onChange={e => setFilter(f=>({...f,phase:e.target.value}))} style={{ ...inputStyle, width:130, cursor:'pointer' }}>
                 <option value="">All Phases</option>
-                {['CSP','CC','Stock'].map(o => <option key={o}>{o}</option>)}
+                {['CSP','CC','Stock','Put Spread','Call Spread'].map(o => <option key={o}>{o}</option>)}
               </select>
               <select value={filter.status} onChange={e => setFilter(f=>({...f,status:e.target.value}))} style={{ ...inputStyle, width:120, cursor:'pointer' }}>
                 <option value="">All Status</option>
@@ -713,7 +720,7 @@ export default function App() {
                       <tr key={pos.id} style={{ borderBottom:`1px solid ${D}22` }} onMouseEnter={e=>e.currentTarget.style.background=D+'33'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                         <td style={{ padding:'9px 14px', fontWeight:700 }}>{pos.ticker}</td>
                         <td style={{ padding:'9px 14px' }}><span style={{ background:(PC[pos.phase]||M)+'22', color:PC[pos.phase]||M, padding:'2px 8px', borderRadius:4, fontSize:11, fontWeight:600 }}>{pos.phase}</span></td>
-                        <td style={{ padding:'9px 14px', fontFamily:'monospace' }}>{pos.strike?'$'+pos.strike:'—'}</td>
+                        <td style={{ padding:'9px 14px', fontFamily:'monospace' }}>{pos.strike ? (isSpread(pos) && pos.longStrike ? `$${pos.strike}/$${pos.longStrike}` : '$'+pos.strike) : '—'}</td>
                         <td style={{ padding:'9px 14px', color:M, whiteSpace:'nowrap' }}>{pos.expiry||'—'}</td>
                         <td style={{ padding:'9px 14px', color:dteCol, fontFamily:'monospace', fontWeight:600 }}>{dteVal!==null?(dteVal<=0?'EXP':dteVal+'d'):'—'}</td>
                         <td style={{ padding:'9px 14px', fontFamily:'monospace', color:M }}>{held!==null?held+'d':'—'}</td>
@@ -770,14 +777,15 @@ export default function App() {
       {showForm && modal(editId ? 'Edit Trade' : 'Add Trade', () => { setShowForm(false); setForm(BLANK); setEditId(null); editIdRef.current=null; }, (
         <>
           <div style={{ background:BL+'11', border:`1px solid ${BL}33`, borderRadius:6, padding:'10px 12px', marginBottom:14, fontSize:12, color:M, lineHeight:1.7 }}>
-            💡 Premium = per-share (e.g. <code style={{color:BL}}>1.50</code>, ×100 auto) · Short CSP delta = positive · Theta = positive for short opts
+            💡 Premium = net credit per contract (×100 auto) · Spreads: enter short strike + long strike · Mark refresh skips spreads (enter manually)
           </div>
           <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':'1fr 1fr', gap:12 }}>
             <Inp label="Ticker" k="ticker" form={form} f={f} placeholder="AAPL" />
-            <Sel label="Phase" k="phase" opts={['CSP','CC','Stock']} form={form} f={f} />
-            {form.phase !== 'Stock' && <Inp label="Strike ($)" k="strike" type="number" form={form} f={f} />}
+            <Sel label="Phase" k="phase" opts={['CSP','CC','Stock','Put Spread','Call Spread']} form={form} f={f} />
+            {form.phase !== 'Stock' && <Inp label={isSpread(form) ? 'Short Strike ($)' : 'Strike ($)'} k="strike" type="number" form={form} f={f} />}
+            {isSpread(form) && <Inp label="Long Strike ($)" k="longStrike" type="number" form={form} f={f} />}
             {form.phase !== 'Stock' && <Inp label="Expiry" k="expiry" type="date" form={form} f={f} />}
-            {form.phase !== 'Stock' && <Inp label="Premium / contract ($)" k="premium" type="number" form={form} f={f} placeholder="1.50" />}
+            {form.phase !== 'Stock' && <Inp label={isSpread(form) ? 'Net Credit / contract ($)' : 'Premium / contract ($)'} k="premium" type="number" form={form} f={f} placeholder="1.50" />}
             {form.phase !== 'Stock' && <Inp label="Contracts" k="contracts" type="number" form={form} f={f} />}
             {form.phase === 'Stock' && <Inp label="Shares" k="shares" type="number" form={form} f={f} />}
             {form.phase === 'Stock' && <Inp label="Cost Basis / share ($)" k="costBasis" type="number" form={form} f={f} />}
@@ -805,7 +813,7 @@ export default function App() {
       {showImport && modal('Import CSV', () => setShowImport(false), (
         <>
           <div style={{ fontSize:12, color:M, marginBottom:10, lineHeight:1.7 }}>
-            Headers: <code style={{ color:BL, fontSize:11 }}>ticker, phase, strike, expiry, premium, contracts, openDate, status, delta, theta, vega, notes, shares, costBasis</code>
+            Headers: <code style={{ color:BL, fontSize:11 }}>ticker, phase, strike, longStrike, expiry, premium, contracts, openDate, status, delta, theta, vega, notes, shares, costBasis</code>
           </div>
           <textarea value={csvText} onChange={e => setCsvText(e.target.value)} rows={7} placeholder={"ticker,phase,strike,expiry,premium,contracts\nAAPL,CSP,170,2025-05-16,1.50,2"} style={{ ...inputStyle, resize:'vertical', fontFamily:'monospace', fontSize:12 }} />
           {csvErr && <div style={{ color:R, fontSize:12, marginTop:8 }}>{csvErr}</div>}
