@@ -374,6 +374,7 @@ export default function App() {
   const [editId, setEditId]           = useState(null);
   const editIdRef                     = useRef(null);
   const [filter, setFilter]           = useState({ ticker:'', phase:'', status:'' });
+  const [sort, setSort]               = useState({ field:'ticker', dir:'asc' });
   const [loaded, setLoaded]           = useState(false);
   const [csvText, setCsvText]         = useState('');
   const [csvErr, setCsvErr]           = useState('');
@@ -448,12 +449,36 @@ export default function App() {
     } catch(e) { setCsvErr('Parse error: '+e.message); }
   }
   
-  const filtered = useMemo(() => positions.filter(p => {
-    if (filter.ticker && !p.ticker.toLowerCase().includes(filter.ticker.toLowerCase())) return false;
-    if (filter.phase && p.phase!==filter.phase) return false;
-    if (filter.status && p.status!==filter.status) return false;
-    return true;
-  }), [positions, filter]);
+  const filtered = useMemo(() => {
+    const list = positions.filter(p => {
+      if (filter.ticker && !p.ticker.toLowerCase().includes(filter.ticker.toLowerCase())) return false;
+      if (filter.phase && p.phase!==filter.phase) return false;
+      if (filter.status && p.status!==filter.status) return false;
+      return true;
+    });
+    if (!sort.field) return list;
+    const val = p => {
+      switch (sort.field) {
+        case 'ticker':    return p.ticker;
+        case 'phase':     return p.phase;
+        case 'strike':    return parseFloat(p.strike) || 0;
+        case 'expiry':    return p.expiry || '';
+        case 'dte':       { const d = DTE(p.expiry); return d === null ? Infinity : d; }
+        case 'daysHeld':  return daysHeld(p) ?? 0;
+        case 'premium':   return parseFloat(p.premium) || 0;
+        case 'contracts': return parseInt(p.contracts) || 0;
+        case 'pnl':       return p.status === 'Open' ? unrlPnl(p) : realPnl(p);
+        case 'ror':       return rorPct(p) ?? -Infinity;
+        case 'status':    return p.status;
+        default:          return '';
+      }
+    };
+    return [...list].sort((a, b) => {
+      const av = val(a), bv = val(b);
+      const cmp = typeof av === 'string' ? av.localeCompare(bv) : av - bv;
+      return sort.dir === 'asc' ? cmp : -cmp;
+    });
+  }, [positions, filter, sort]);
   
   const modal = (title, onClose, children) => (
     <div style={{ position:'fixed', inset:0, background:'#000c', display:'flex', alignItems:isMobile?'flex-end':'center', justifyContent:'center', zIndex:200 }}>
@@ -618,6 +643,20 @@ export default function App() {
                 <option value="">All Status</option>
                 {['Open','Expired','Assigned','Closed'].map(o => <option key={o}>{o}</option>)}
               </select>
+              {isMobile && (
+                <select value={`${sort.field}:${sort.dir}`} onChange={e => { const [field,dir]=e.target.value.split(':'); setSort({field,dir}); }} style={{ ...inputStyle, width:150, cursor:'pointer' }}>
+                  <option value="ticker:asc">Ticker A→Z</option>
+                  <option value="ticker:desc">Ticker Z→A</option>
+                  <option value="expiry:asc">Expiry ↑</option>
+                  <option value="expiry:desc">Expiry ↓</option>
+                  <option value="dte:asc">DTE ↑</option>
+                  <option value="dte:desc">DTE ↓</option>
+                  <option value="pnl:desc">P&amp;L Best</option>
+                  <option value="pnl:asc">P&amp;L Worst</option>
+                  <option value="premium:desc">Premium ↓</option>
+                  <option value="status:asc">Status</option>
+                </select>
+              )}
               <span style={{ color:M, fontSize:12 }}>{filtered.length} position{filtered.length!==1?'s':''}</span>
             </div>
             
@@ -631,9 +670,15 @@ export default function App() {
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
                   <thead>
                   <tr style={{ borderBottom:`1px solid ${D}` }}>
-                    {['Ticker','Phase','Strike','Expiry','DTE','Days Held','Premium/ct','Mark','Contracts','P&L','RoR','% Captured','Status','Actions'].map(h => (
-                      <th key={h} style={{ padding:'11px 14px', textAlign:'left', color:M, fontWeight:600, fontSize:11, textTransform:'uppercase', letterSpacing:.7, whiteSpace:'nowrap' }}>{h}</th>
-                    ))}
+                    {[['Ticker','ticker'],['Phase','phase'],['Strike','strike'],['Expiry','expiry'],['DTE','dte'],['Days Held','daysHeld'],['Premium/ct','premium'],['Mark',null],['Contracts','contracts'],['P&L','pnl'],['RoR','ror'],['% Captured',null],['Status','status'],['Actions',null]].map(([h,field]) => {
+                      const active = sort.field === field;
+                      return (
+                        <th key={h} onClick={field ? () => setSort(s => ({ field, dir: s.field===field && s.dir==='asc' ? 'desc' : 'asc' })) : undefined}
+                          style={{ padding:'11px 14px', textAlign:'left', color:active?T:M, fontWeight:600, fontSize:11, textTransform:'uppercase', letterSpacing:.7, whiteSpace:'nowrap', cursor:field?'pointer':'default', userSelect:'none' }}>
+                          {h}{field && <span style={{ marginLeft:3, opacity:active?1:0.3, fontSize:10 }}>{active && sort.dir==='desc' ? '↓' : '↑'}</span>}
+                        </th>
+                      );
+                    })}
                   </tr>
                   </thead>
                   <tbody>
