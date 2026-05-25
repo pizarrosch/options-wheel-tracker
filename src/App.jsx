@@ -373,7 +373,7 @@ export default function App() {
   const [form, setForm]               = useState(BLANK);
   const [editId, setEditId]           = useState(null);
   const editIdRef                     = useRef(null);
-  const [filter, setFilter]           = useState({ ticker:'', phase:'', status:'' });
+  const [filter, setFilter]           = useState({ ticker:'', phase:'', status:'', expMonth:'' });
   const [sort, setSort]               = useState({ field:'ticker', dir:'asc' });
   const [loaded, setLoaded]           = useState(false);
   const [csvText, setCsvText]         = useState('');
@@ -449,11 +449,28 @@ export default function App() {
     } catch(e) { setCsvErr('Parse error: '+e.message); }
   }
   
+  const expMonthOptions = useMemo(() => {
+    const months = new Set();
+    positions.forEach(p => {
+      if (p.expiry) {
+        const d = new Date(p.expiry + 'T00:00:00');
+        if (!isNaN(d)) months.add(d.toLocaleString('default', { month:'short', year:'numeric' }));
+      }
+    });
+    return [...months].sort((a, b) => new Date(a) - new Date(b));
+  }, [positions]);
+
   const filtered = useMemo(() => {
     const list = positions.filter(p => {
       if (filter.ticker && !p.ticker.toLowerCase().includes(filter.ticker.toLowerCase())) return false;
       if (filter.phase && p.phase!==filter.phase) return false;
       if (filter.status && p.status!==filter.status) return false;
+      if (filter.expMonth) {
+        if (!p.expiry) return false;
+        const d = new Date(p.expiry + 'T00:00:00');
+        const label = isNaN(d) ? '' : d.toLocaleString('default', { month:'short', year:'numeric' });
+        if (label !== filter.expMonth) return false;
+      }
       return true;
     });
     if (!sort.field) return list;
@@ -642,6 +659,10 @@ export default function App() {
               <select value={filter.status} onChange={e => setFilter(f=>({...f,status:e.target.value}))} style={{ ...inputStyle, width:120, cursor:'pointer' }}>
                 <option value="">All Status</option>
                 {['Open','Expired','Assigned','Closed'].map(o => <option key={o}>{o}</option>)}
+              </select>
+              <select value={filter.expMonth} onChange={e => setFilter(f=>({...f,expMonth:e.target.value}))} style={{ ...inputStyle, width:120, cursor:'pointer' }}>
+                <option value="">All Months</option>
+                {expMonthOptions.map(m => <option key={m}>{m}</option>)}
               </select>
               {isMobile && (
                 <select value={`${sort.field}:${sort.dir}`} onChange={e => { const [field,dir]=e.target.value.split(':'); setSort({field,dir}); }} style={{ ...inputStyle, width:150, cursor:'pointer' }}>
