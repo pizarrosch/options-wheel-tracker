@@ -1,4 +1,17 @@
 :root {
+  /* App dark palette — used by CSS modules */
+  --c-bg: #0d1117;
+  --c-surface: #161b22;
+  --c-border: #30363d;
+  --c-text: #e6edf3;
+  --c-muted: #8b949e;
+  --c-green: #3fb950;
+  --c-red: #f85149;
+  --c-blue: #58a6ff;
+  --c-purple: #bc8cff;
+  --c-yellow: #e3b341;
+  --c-orange: #ffa657;
+
   --text: #6b6375;
   --text-h: #08060d;
   --bg: #fff;

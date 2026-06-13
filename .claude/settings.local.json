@@ -13,7 +13,9 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(npm run *)",
-      "Bash(grep -E \"\\(package\\\\.json|tsconfig|\\\\.tsx?$\\)\")"
+      "Bash(grep -E \"\\(package\\\\.json|tsconfig|\\\\.tsx?$\\)\")",
+      "Bash(git restore *)",
+      "Bash(git push *)"
     ]
   }
 }
