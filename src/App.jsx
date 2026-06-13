@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import Papa from 'papaparse';
 
 import { B, T } from './theme';
-import { BLANK, TODAY, isSpread, capRisk, realPnl, unrlPnl, DTE, daysHeld, rorPct } from './utils/calculations';
+import { BLANK, TODAY, isSpread, capRisk, realPnl, unrlPnl, premTot, DTE, daysHeld, rorPct } from './utils/calculations';
 import { fetchMarketData } from './utils/marketData';
 import { useIsMobile } from './hooks/useIsMobile';
 
@@ -75,7 +75,8 @@ export default function App() {
   const st = useMemo(() => {
     const open   = positions.filter(p => p.status === 'Open');
     const closed = positions.filter(p => p.status !== 'Open');
-    const totPremium  = closed.filter(p => p.phase !== 'Stock').reduce((s, p) => s + realPnl(p), 0);
+    const totPremium   = closed.filter(p => p.phase !== 'Stock').reduce((s, p) => s + realPnl(p), 0);
+    const openPremium  = open.filter(p => p.phase !== 'Stock').reduce((s, p) => s + premTot(p), 0);
     const totRealized = closed.reduce((s, p) => s + realPnl(p), 0);
     const totUnreal   = open.reduce((s, p) => s + unrlPnl(p), 0);
     const totCap      = open.reduce((s, p) => s + capRisk(p), 0);
@@ -96,7 +97,7 @@ export default function App() {
       .filter(p => p.expiry && p.phase !== 'Stock')
       .map(p => ({ ...p, dte: DTE(p.expiry) }))
       .sort((a, b) => a.dte - b.dte);
-    return { totPremium, totRealized, totUnreal, totCap, winRate, wins, openCount: open.length, closedCount: closed.length, netDelta, netTheta, netVega, phaseMix, tickerConc, expirations };
+    return { totPremium, openPremium, totRealized, totUnreal, totCap, winRate, wins, openCount: open.length, closedCount: closed.length, netDelta, netTheta, netVega, phaseMix, tickerConc, expirations };
   }, [positions]);
 
   const f = (k, v) => setForm(prev => ({ ...prev, [k]: v }));

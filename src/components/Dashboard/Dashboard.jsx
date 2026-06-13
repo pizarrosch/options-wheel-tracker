@@ -10,8 +10,8 @@ export function Dashboard({ st, isMobile }) {
   return (
     <div className={styles.root}>
       <div className={`${styles.statGrid} ${isMobile ? styles.statGridMobile : styles.statGridDesktop}`}>
-        <StatCard label="Premium Collected" val={'$' + NUM(st.totPremium)} color={G} sub="CSP & CC" />
-        <StatCard label="Realized P&L" val={CUR(st.totRealized)} color={st.totRealized >= 0 ? G : R} sub="CSP, CC and assigned stocks" />
+        <StatCard label="Open Premium" val={'$' + NUM(st.openPremium)} color={YL} sub="Open positions" />
+        <StatCard label="Realized P&L" val={CUR(st.totPremium)} color={st.totPremium >= 0 ? G : R} sub="CSP & CC" />
         <StatCard label="Unrealized P&L" val={CUR(st.totUnreal)} color={st.totUnreal >= 0 ? G : R} sub="Current marks" />
         <StatCard label="Capital at Risk" val={'$' + NUM(st.totCap)} />
         <StatCard label="Win Rate" val={NUM(st.winRate, 1) + '%'} color={st.winRate >= 70 ? G : st.winRate >= 50 ? YL : R} sub={`${st.wins}/${st.closedCount} closed`} />
