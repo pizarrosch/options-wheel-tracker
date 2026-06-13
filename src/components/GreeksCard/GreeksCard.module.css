@@ -1,0 +1,33 @@
+.card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.label {
+  font-size: 11px;
+  color: var(--c-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.rowLabel {
+  color: var(--c-muted);
+  font-size: 13px;
+}
+
+.rowValue {
+  color: var(--c-text);
+  font-family: monospace;
+  font-weight: 600;
+}

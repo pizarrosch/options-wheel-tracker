@@ -1,0 +1,90 @@
+.sidebar {
+  width: 190px;
+  background: var(--c-surface);
+  border-right: 1px solid var(--c-border);
+  padding: 18px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.brand {
+  padding: 0 6px;
+  margin-bottom: 18px;
+}
+
+.brandName {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--c-text);
+}
+
+.brandSub {
+  font-size: 11px;
+  color: var(--c-muted);
+  margin-top: 2px;
+}
+
+.navBtn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  width: 100%;
+  text-align: left;
+}
+
+.divider {
+  height: 1px;
+  background: var(--c-border);
+  margin: 8px 2px;
+}
+
+.addBtn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.importBtn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px;
+  background: transparent;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.refreshBtn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.logMsg {
+  font-size: 10px;
+  padding: 2px 6px;
+  text-align: center;
+}

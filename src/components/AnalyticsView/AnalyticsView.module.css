@@ -1,0 +1,103 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rangePicker {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.rangeBtn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border-width: 1px;
+  border-style: solid;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.statGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.statGridMobile {
+  grid-template-columns: 1fr 1fr;
+}
+
+.statGridDesktop {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.chartCard {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.chartHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.chartLabel {
+  font-size: 11px;
+  color: var(--c-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.chartTotal {
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-muted);
+  font-size: 13px;
+}
+
+.monthlyTable {
+  margin-top: 12px;
+  border-top: 1px solid var(--c-border);
+  padding-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 6px 16px;
+  align-items: center;
+}
+
+.monthlyHeader {
+  display: contents;
+}
+
+.monthlyHeader span {
+  color: var(--c-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.monthlyCell {
+  font-size: 13px;
+}
+
+.mono {
+  font-family: monospace;
+}
+
+.right {
+  text-align: right;
+}

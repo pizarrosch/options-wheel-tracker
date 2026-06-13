@@ -1,0 +1,42 @@
+.topBar {
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.brandName {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--c-text);
+}
+
+.brandSub {
+  font-size: 11px;
+  color: var(--c-muted);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.refreshBtn,
+.addBtn {
+  border-width: 1px;
+  border-style: solid;
+  padding: 7px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.addBtn {
+  padding: 7px 14px;
+  font-weight: 600;
+}
