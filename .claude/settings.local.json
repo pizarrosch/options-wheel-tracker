@@ -16,7 +16,8 @@
       "Bash(grep -E \"\\(package\\\\.json|tsconfig|\\\\.tsx?$\\)\")",
       "Bash(git restore *)",
       "Bash(git push *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(node *)"
     ]
   }
 }
