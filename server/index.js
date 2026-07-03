@@ -60,11 +60,30 @@ app.get('/yf/options', async (req, res) => {
   const { symbol, expiration } = req.query;
   if (!symbol || !expiration) return res.status(400).json({ error: 'symbol and expiration required' });
   try {
-    // Yahoo expects a Date for the specific expiry
-    const expiryDate = new Date(expiration + 'T00:00:00Z');
-    const chain = await yahooFinance.options(symbol, { date: expiryDate }, { validateResult: false });
-    const calls = (chain.options?.[0]?.calls ?? []).map(o => ({
-      option_type: 'call',
+    // Fetch available expirations first — Yahoo stores them as timestamps,
+    // not midnight UTC, so we can't construct the date ourselves.
+    const meta = await yahooFinance.options(symbol, {}, { validateResult: false });
+    const available = meta.expirationDates ?? [];
+
+    // Match the YYYY-MM-DD string against each expiration Date
+    const matchedDate = available.find(
+      d => new Date(d).toISOString().slice(0, 10) === expiration
+    );
+
+    if (!matchedDate) {
+      const avail = available.map(d => new Date(d).toISOString().slice(0, 10)).join(', ');
+      console.warn(`${symbol}: no expiration matching ${expiration}. Available: ${avail}`);
+      return res.json({ options: [] });
+    }
+
+    // Re-fetch only if the matched date isn't already the one Yahoo returned
+    const firstAvail = available[0] && new Date(available[0]).toISOString().slice(0, 10);
+    const chain = firstAvail === expiration
+      ? meta
+      : await yahooFinance.options(symbol, { date: matchedDate }, { validateResult: false });
+
+    const mapOption = (o, type) => ({
+      option_type: type,
       strike: o.strike,
       bid: o.bid,
       ask: o.ask,
@@ -76,21 +95,10 @@ app.get('/yf/options', async (req, res) => {
         gamma: o.gamma ?? null,
         impliedVolatility: o.impliedVolatility ?? null,
       },
-    }));
-    const puts = (chain.options?.[0]?.puts ?? []).map(o => ({
-      option_type: 'put',
-      strike: o.strike,
-      bid: o.bid,
-      ask: o.ask,
-      last: o.lastPrice,
-      greeks: {
-        delta: o.delta ?? null,
-        theta: o.theta ?? null,
-        vega: o.vega ?? null,
-        gamma: o.gamma ?? null,
-        impliedVolatility: o.impliedVolatility ?? null,
-      },
-    }));
+    });
+
+    const calls = (chain.options?.[0]?.calls ?? []).map(o => mapOption(o, 'call'));
+    const puts  = (chain.options?.[0]?.puts  ?? []).map(o => mapOption(o, 'put'));
     res.json({ options: [...calls, ...puts] });
   } catch (e) {
     console.error('YF options error:', e.message);
