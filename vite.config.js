@@ -6,12 +6,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': 'http://localhost:3000',
-      '/tradier': {
-        target: 'https://api.tradier.com',
-        changeOrigin: true,
-        rewrite: path => path.replace(/^\/tradier/, ''),
-        headers: { 'Accept': 'application/json' }
-      }
+      '/yf': 'http://localhost:3000',
     }
   }
 })

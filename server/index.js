@@ -3,6 +3,7 @@ import pg from 'pg';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import yahooFinance from 'yahoo-finance2';
 
 const { Pool } = pg;
 const app  = express();
@@ -36,20 +37,63 @@ async function initDb() {
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
-// ── Tradier proxy — API key injected server-side from env var
-app.use('/tradier', async (req, res) => {
-  const key = process.env.TRADIER_KEY;
-  if (!key) return res.status(500).json({ error: 'TRADIER_KEY not set on server' });
+// ── Yahoo Finance: stock quotes
+app.get('/yf/quotes', async (req, res) => {
+  const symbols = String(req.query.symbols || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!symbols.length) return res.status(400).json({ error: 'symbols required' });
   try {
-    const url = `https://api.tradier.com${req.path}${req.url.includes('?') ? '?' + req.url.split('?')[1] : ''}`;
-    const response = await fetch(url, {
-      method: req.method,
-      headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
-    });
-    const data = await response.json();
-    res.json(data);
-  } catch(e) {
-    console.error('Tradier proxy error:', e.message);
+    const results = await Promise.all(
+      symbols.map(s => yahooFinance.quote(s, {}, { validateResult: false }).catch(() => null))
+    );
+    const quotes = results
+      .filter(Boolean)
+      .map(q => ({ symbol: q.symbol, last: q.regularMarketPrice, bid: q.bid }));
+    res.json({ quotes });
+  } catch (e) {
+    console.error('YF quotes error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Yahoo Finance: options chain with greeks
+app.get('/yf/options', async (req, res) => {
+  const { symbol, expiration } = req.query;
+  if (!symbol || !expiration) return res.status(400).json({ error: 'symbol and expiration required' });
+  try {
+    // Yahoo expects a Date for the specific expiry
+    const expiryDate = new Date(expiration + 'T00:00:00Z');
+    const chain = await yahooFinance.options(symbol, { date: expiryDate }, { validateResult: false });
+    const calls = (chain.options?.[0]?.calls ?? []).map(o => ({
+      option_type: 'call',
+      strike: o.strike,
+      bid: o.bid,
+      ask: o.ask,
+      last: o.lastPrice,
+      greeks: {
+        delta: o.delta ?? null,
+        theta: o.theta ?? null,
+        vega: o.vega ?? null,
+        gamma: o.gamma ?? null,
+        impliedVolatility: o.impliedVolatility ?? null,
+      },
+    }));
+    const puts = (chain.options?.[0]?.puts ?? []).map(o => ({
+      option_type: 'put',
+      strike: o.strike,
+      bid: o.bid,
+      ask: o.ask,
+      last: o.lastPrice,
+      greeks: {
+        delta: o.delta ?? null,
+        theta: o.theta ?? null,
+        vega: o.vega ?? null,
+        gamma: o.gamma ?? null,
+        impliedVolatility: o.impliedVolatility ?? null,
+      },
+    }));
+    res.json({ options: [...calls, ...puts] });
+  } catch (e) {
+    console.error('YF options error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });

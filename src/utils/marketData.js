@@ -5,14 +5,12 @@ export async function fetchMarketData(positions, setLog) {
   const updated = positions.map(p => ({ ...p }));
   const tickers = [...new Set(open.map(p => p.ticker))];
   const logs = [];
-  const headers = { Accept: 'application/json' };
 
   setLog('Fetching quotes…');
   try {
-    const res = await fetch(`/tradier/v1/markets/quotes?symbols=${tickers.join(',')}&greeks=false`, { headers });
+    const res = await fetch(`/yf/quotes?symbols=${tickers.join(',')}`);
     const data = await res.json();
-    const quotes = data?.quotes?.quote;
-    const quoteList = Array.isArray(quotes) ? quotes : quotes ? [quotes] : [];
+    const quoteList = Array.isArray(data?.quotes) ? data.quotes : [];
     quoteList.forEach(q => {
       const price = q.last ?? q.bid;
       if (!price) return;
@@ -40,13 +38,9 @@ export async function fetchMarketData(positions, setLog) {
   for (const { ticker, expiry } of pairs) {
     setLog(`Fetching ${ticker} ${expiry}…`);
     try {
-      const res = await fetch(
-        `/tradier/v1/markets/options/chains?symbol=${ticker}&expiration=${expiry}&greeks=true`,
-        { headers }
-      );
+      const res = await fetch(`/yf/options?symbol=${ticker}&expiration=${expiry}`);
       const data = await res.json();
-      const options = data?.options?.option;
-      const chain = Array.isArray(options) ? options : options ? [options] : [];
+      const chain = Array.isArray(data?.options) ? data.options : [];
       if (!chain.length) { logs.push(`${ticker} ${expiry}: no chain`); continue; }
 
       optPositions
