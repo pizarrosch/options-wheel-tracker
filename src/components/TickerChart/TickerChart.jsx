@@ -25,6 +25,7 @@ export function TickerChart({ tickerConc }) {
             width={48}
             axisLine={false}
             tickLine={false}
+            interval={0}
           />
           <Tooltip
             formatter={v => ['$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }), 'Capital']}
