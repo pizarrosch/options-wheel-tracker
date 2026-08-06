@@ -29,6 +29,8 @@ export function TickerChart({ tickerConc }) {
           <Tooltip
             formatter={v => ['$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }), 'Capital']}
             contentStyle={tooltipStyle}
+            itemStyle={{ color: T }}
+            labelStyle={{ color: T }}
           />
           <Bar dataKey="capital" radius={[0, 4, 4, 0]}>
             {tickerConc.map((_, i) => <Cell key={i} fill={TC[i % TC.length]} />)}
