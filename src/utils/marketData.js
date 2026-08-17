@@ -3,7 +3,8 @@ export async function fetchMarketData(positions, setLog) {
   if (!open.length) return { updated: positions, log: 'No open positions.' };
 
   const updated = positions.map(p => ({ ...p }));
-  const tickers = [...new Set(open.map(p => p.ticker))];
+  const isFutures = t => t.startsWith('/');
+  const tickers = [...new Set(open.filter(p => !isFutures(p.ticker)).map(p => p.ticker))];
   const logs = [];
 
   setLog('Fetching quotes…');
@@ -27,7 +28,7 @@ export async function fetchMarketData(positions, setLog) {
   }
 
   const optPositions = open.filter(
-    p => p.phase !== 'Stock' && p.phase !== 'Put Spread' && p.phase !== 'Call Spread' && p.expiry
+    p => p.phase !== 'Stock' && p.phase !== 'Put Spread' && p.phase !== 'Call Spread' && p.expiry && !isFutures(p.ticker)
   );
   const pairs = [
     ...new Map(

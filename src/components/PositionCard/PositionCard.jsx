@@ -75,6 +75,12 @@ export function PositionCard({ pos, onEdit, onDelete }) {
             <div className={styles.mono}>{pos.contracts}</div>
           </div>
         )}
+        {pos.phase !== 'Stock' && pos.multiplier && pos.multiplier !== '100' && (
+          <div>
+            <div className={styles.fieldLabel}>Multiplier</div>
+            <div className={styles.mono}>×{pos.multiplier}</div>
+          </div>
+        )}
         {pos.currentMark && (
           <div>
             <div className={styles.fieldLabel}>Mark</div>

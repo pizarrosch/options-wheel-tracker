@@ -8,10 +8,10 @@ export function TradeForm({ form, f, editId, isMobile, onSubmit, onClose }) {
   return (
     <Modal title={editId ? 'Edit Trade' : 'Add Trade'} onClose={onClose} isMobile={isMobile}>
       <div className={styles.hint} style={{ borderColor: BL + '33', color: M }}>
-        💡 Premium = net credit per contract (×100 auto) · Spreads: enter short strike + long strike · Mark refresh skips spreads (enter manually)
+        💡 Premium = net credit per contract (×multiplier auto) · Spreads: enter short strike + long strike · Mark refresh skips spreads and futures tickers (enter manually) · Futures options: set Multiplier to the contract's point value (e.g. /ES 50, /MES 5, /CL 1000, /GC 100, /ZB 1000) instead of the equity default of 100
       </div>
       <div className={`${styles.grid} ${isMobile ? styles.gridMobile : styles.gridDesktop}`}>
-        <Inp label="Ticker" k="ticker" form={form} f={f} placeholder="AAPL" />
+        <Inp label="Ticker" k="ticker" form={form} f={f} placeholder="AAPL or /ES" />
         <Sel label="Phase" k="phase" opts={['CSP', 'CC', 'Stock', 'Put Spread', 'Call Spread']} form={form} f={f} />
         {form.phase !== 'Stock' && (
           <Inp label={isSpread(form) ? 'Short Strike ($)' : 'Strike ($)'} k="strike" type="number" form={form} f={f} />
@@ -22,6 +22,7 @@ export function TradeForm({ form, f, editId, isMobile, onSubmit, onClose }) {
           <Inp label={isSpread(form) ? 'Net Credit / contract ($)' : 'Premium / contract ($)'} k="premium" type="number" form={form} f={f} placeholder="1.50" />
         )}
         {form.phase !== 'Stock' && <Inp label="Contracts" k="contracts" type="number" form={form} f={f} />}
+        {form.phase !== 'Stock' && <Inp label="Multiplier ($/point)" k="multiplier" type="number" form={form} f={f} placeholder="100" />}
         {form.phase === 'Stock' && <Inp label="Shares" k="shares" type="number" form={form} f={f} />}
         {form.phase === 'Stock' && <Inp label="Cost Basis / share ($)" k="costBasis" type="number" form={form} f={f} />}
         <Inp label="Open Date" k="openDate" type="date" form={form} f={f} />

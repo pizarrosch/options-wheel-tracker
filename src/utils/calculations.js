@@ -1,4 +1,4 @@
-export const MUL = p => p.phase === 'Stock' ? 1 : 100;
+export const MUL = p => p.phase === 'Stock' ? 1 : (parseFloat(p.multiplier) || 100);
 
 export const DTE = exp =>
   exp ? Math.ceil((new Date(exp + 'T12:00:00') - Date.now()) / 86400000) : null;
@@ -18,6 +18,7 @@ export const BLANK = {
   ticker: '', phase: 'CSP', strike: '', longStrike: '', expiry: '', premium: '',
   contracts: '1', openDate: TODAY(), closeDate: '', status: 'Open', closePrice: '',
   currentMark: '', delta: '', theta: '', vega: '', notes: '', shares: '', costBasis: '',
+  multiplier: '100',
 };
 
 export const isSpread = p => p.phase === 'Put Spread' || p.phase === 'Call Spread';
@@ -27,12 +28,12 @@ export const premTot = p =>
 
 export const spreadMaxRisk = p => {
   const width = Math.abs((parseFloat(p.strike) || 0) - (parseFloat(p.longStrike) || 0));
-  return (width - (parseFloat(p.premium) || 0)) * (parseInt(p.contracts) || 1) * 100;
+  return (width - (parseFloat(p.premium) || 0)) * (parseInt(p.contracts) || 1) * MUL(p);
 };
 
 export const capRisk = p => {
   if (p.status !== 'Open') return 0;
-  if (p.phase === 'CSP') return (parseFloat(p.strike) || 0) * (parseInt(p.contracts) || 1) * 100;
+  if (p.phase === 'CSP') return (parseFloat(p.strike) || 0) * (parseInt(p.contracts) || 1) * MUL(p);
   if (isSpread(p)) return spreadMaxRisk(p);
   if (p.phase === 'Stock') return (parseFloat(p.costBasis) || 0) * (parseInt(p.shares) || 0);
   return 0;
@@ -40,7 +41,7 @@ export const capRisk = p => {
 
 export const capAtOpen = p => {
   if (p.phase === 'CSP' || p.phase === 'CC')
-    return (parseFloat(p.strike) || 0) * (parseInt(p.contracts) || 1) * 100;
+    return (parseFloat(p.strike) || 0) * (parseInt(p.contracts) || 1) * MUL(p);
   if (isSpread(p)) return spreadMaxRisk(p);
   if (p.phase === 'Stock') return (parseFloat(p.costBasis) || 0) * (parseInt(p.shares) || 0);
   return 0;
@@ -53,7 +54,7 @@ export const realPnl = p => {
   const cp = p.closePrice !== '' && p.closePrice != null ? parseFloat(p.closePrice) : null;
   return cp === null
     ? premTot(p)
-    : ((parseFloat(p.premium) || 0) - cp) * (parseInt(p.contracts) || 1) * 100;
+    : ((parseFloat(p.premium) || 0) - cp) * (parseInt(p.contracts) || 1) * MUL(p);
 };
 
 export const unrlPnl = p => {
@@ -61,7 +62,7 @@ export const unrlPnl = p => {
   if (p.phase === 'Stock')
     return ((parseFloat(p.currentMark) || 0) - (parseFloat(p.costBasis) || 0)) * (parseInt(p.shares) || 0);
   if (p.currentMark === '' || p.currentMark == null) return 0;
-  return ((parseFloat(p.premium) || 0) - parseFloat(p.currentMark)) * (parseInt(p.contracts) || 1) * 100;
+  return ((parseFloat(p.premium) || 0) - parseFloat(p.currentMark)) * (parseInt(p.contracts) || 1) * MUL(p);
 };
 
 export const rorPct = p => {

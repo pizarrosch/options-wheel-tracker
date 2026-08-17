@@ -147,7 +147,10 @@ export function PositionsView({ filtered, filter, setFilter, sort, setSort, expM
                     <td className={`${styles.td} ${styles.mono}`} style={{ color: M }}>{held !== null ? held + 'd' : '—'}</td>
                     <td className={`${styles.td} ${styles.mono}`} style={{ color: G }}>{pos.premium ? '+$' + NUM(pos.premium) : '—'}</td>
                     <td className={`${styles.td} ${styles.mono}`} style={{ color: M }}>{pos.currentMark ? '$' + NUM(pos.currentMark) : '—'}</td>
-                    <td className={`${styles.td} ${styles.mono}`}>{pos.contracts}</td>
+                    <td className={`${styles.td} ${styles.mono}`}>
+                      {pos.contracts}
+                      {pos.phase !== 'Stock' && pos.multiplier && pos.multiplier !== '100' ? ` ×${pos.multiplier}` : ''}
+                    </td>
                     <td className={`${styles.td} ${styles.mono}`} style={{ color: pnl >= 0 ? G : R, fontWeight: 600 }}>
                       {pnl !== 0 ? CUR(pnl) : '—'}
                     </td>

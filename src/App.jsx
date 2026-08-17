@@ -134,6 +134,7 @@ export default function App() {
           expiry:    r.expiry || r.expiration || '',
           premium:   r.premium || r.credit || '',
           contracts: r.contracts || r.qty || '1',
+          multiplier: r.multiplier || r.mult || '100',
           openDate:  r.opendate || r.date || TODAY(),
           status:    r.status || 'Open',
           delta:     r.delta || '',
