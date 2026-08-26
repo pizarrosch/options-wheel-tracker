@@ -9,14 +9,14 @@ export function PhaseChart({ phaseMix }) {
   return (
     <div className={styles.card}>
       <div className={styles.label}>Phase Mix</div>
-      <ResponsiveContainer width="100%" height={160}>
+      <ResponsiveContainer width="100%" height={200}>
         <PieChart>
           <Pie
             data={phaseMix}
             cx="50%"
             cy="50%"
             innerRadius={44}
-            outerRadius={68}
+            outerRadius={60}
             paddingAngle={3}
             dataKey="value"
             label={({ name, percent }) => percent > 0.05 ? `${name} ${(percent * 100).toFixed(0)}%` : ''}
