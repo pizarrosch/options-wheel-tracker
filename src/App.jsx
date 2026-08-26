@@ -35,7 +35,7 @@ export default function App() {
   const [form, setForm]               = useState({ ...BLANK, openDate: TODAY() });
   const [editId, setEditId]           = useState(null);
   const editIdRef                     = useRef(null);
-  const [filter, setFilter]           = useState({ ticker: '', phase: '', status: '', expMonth: '' });
+  const [filter, setFilter]           = useState({ ticker: '', phase: '', status: '', expMonth: '', closeMonth: '' });
   const [sort, setSort]               = useState({ field: 'ticker', dir: 'asc' });
   const [loaded, setLoaded]           = useState(false);
   const [csvText, setCsvText]         = useState('');
@@ -162,6 +162,17 @@ export default function App() {
     return [...months].sort((a, b) => new Date(a) - new Date(b));
   }, [positions]);
 
+  const closeMonthOptions = useMemo(() => {
+    const months = new Set();
+    positions.forEach(p => {
+      if (p.closeDate) {
+        const d = new Date(p.closeDate + 'T00:00:00');
+        if (!isNaN(d)) months.add(d.toLocaleString('default', { month: 'short', year: 'numeric' }));
+      }
+    });
+    return [...months].sort((a, b) => new Date(a) - new Date(b));
+  }, [positions]);
+
   const filtered = useMemo(() => {
     const list = positions.filter(p => {
       if (filter.ticker && !p.ticker.toLowerCase().includes(filter.ticker.toLowerCase())) return false;
@@ -173,6 +184,12 @@ export default function App() {
         const label = isNaN(d) ? '' : d.toLocaleString('default', { month: 'short', year: 'numeric' });
         if (label !== filter.expMonth) return false;
       }
+      if (filter.closeMonth) {
+        if (!p.closeDate) return false;
+        const d = new Date(p.closeDate + 'T00:00:00');
+        const label = isNaN(d) ? '' : d.toLocaleString('default', { month: 'short', year: 'numeric' });
+        if (label !== filter.closeMonth) return false;
+      }
       return true;
     });
     if (!sort.field) return list;
@@ -182,6 +199,7 @@ export default function App() {
         case 'phase':     return p.phase;
         case 'strike':    return parseFloat(p.strike) || 0;
         case 'expiry':    return p.expiry || '';
+        case 'closeDate': return p.closeDate || '';
         case 'dte':       { const d = DTE(p.expiry); return d === null ? Infinity : d; }
         case 'daysHeld':  return daysHeld(p) ?? 0;
         case 'premium':   return parseFloat(p.premium) || 0;
@@ -236,6 +254,7 @@ export default function App() {
             filtered={filtered} filter={filter} setFilter={setFilter}
             sort={sort} setSort={setSort}
             expMonthOptions={expMonthOptions}
+            closeMonthOptions={closeMonthOptions}
             isMobile={isMobile}
             onEdit={doEdit} onDelete={doDelete}
           />

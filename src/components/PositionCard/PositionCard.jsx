@@ -55,6 +55,12 @@ export function PositionCard({ pos, onEdit, onDelete }) {
             <div style={{ color: M, fontSize: 12 }}>{pos.expiry}</div>
           </div>
         )}
+        {pos.closeDate && (
+          <div>
+            <div className={styles.fieldLabel}>Closed</div>
+            <div style={{ color: M, fontSize: 12 }}>{pos.closeDate}</div>
+          </div>
+        )}
         {dteVal !== null && (
           <div>
             <div className={styles.fieldLabel}>DTE</div>

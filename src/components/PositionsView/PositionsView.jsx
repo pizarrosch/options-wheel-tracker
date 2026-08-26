@@ -10,6 +10,7 @@ const TABLE_COLS = [
   ['Phase',       'phase'],
   ['Strike',      'strike'],
   ['Expiry',      'expiry'],
+  ['Closed',      'closeDate'],
   ['DTE',         'dte'],
   ['Days Held',   'daysHeld'],
   ['Premium/ct',  'premium'],
@@ -22,7 +23,7 @@ const TABLE_COLS = [
   ['Actions',     null],
 ];
 
-export function PositionsView({ filtered, filter, setFilter, sort, setSort, expMonthOptions, isMobile, onEdit, onDelete }) {
+export function PositionsView({ filtered, filter, setFilter, sort, setSort, expMonthOptions, closeMonthOptions, isMobile, onEdit, onDelete }) {
   return (
     <div className={styles.root}>
       <div className={styles.filters}>
@@ -53,8 +54,16 @@ export function PositionsView({ filtered, filter, setFilter, sort, setSort, expM
           onChange={e => setFilter(f => ({ ...f, expMonth: e.target.value }))}
           style={{ ...inputStyle, width: 120, cursor: 'pointer' }}
         >
-          <option value="">All Months</option>
+          <option value="">All Exp. Months</option>
           {expMonthOptions.map(m => <option key={m}>{m}</option>)}
+        </select>
+        <select
+          value={filter.closeMonth}
+          onChange={e => setFilter(f => ({ ...f, closeMonth: e.target.value }))}
+          style={{ ...inputStyle, width: 130, cursor: 'pointer' }}
+        >
+          <option value="">All Closed Months</option>
+          {closeMonthOptions.map(m => <option key={m}>{m}</option>)}
         </select>
         {isMobile && (
           <select
@@ -66,6 +75,8 @@ export function PositionsView({ filtered, filter, setFilter, sort, setSort, expM
             <option value="ticker:desc">Ticker Z→A</option>
             <option value="expiry:asc">Expiry ↑</option>
             <option value="expiry:desc">Expiry ↓</option>
+            <option value="closeDate:asc">Closed ↑</option>
+            <option value="closeDate:desc">Closed ↓</option>
             <option value="dte:asc">DTE ↑</option>
             <option value="dte:desc">DTE ↓</option>
             <option value="pnl:desc">P&amp;L Best</option>
@@ -115,7 +126,7 @@ export function PositionsView({ filtered, filter, setFilter, sort, setSort, expM
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={14} className={styles.emptyCell}>No positions. Add a trade or import CSV.</td></tr>
+                <tr><td colSpan={15} className={styles.emptyCell}>No positions. Add a trade or import CSV.</td></tr>
               )}
               {filtered.map(pos => {
                 const dteVal = pos.phase !== 'Stock' ? DTE(pos.expiry) : null;
@@ -141,6 +152,7 @@ export function PositionsView({ filtered, filter, setFilter, sort, setSort, expM
                         : '—'}
                     </td>
                     <td className={styles.td} style={{ color: M, whiteSpace: 'nowrap' }}>{pos.expiry || '—'}</td>
+                    <td className={styles.td} style={{ color: M, whiteSpace: 'nowrap' }}>{pos.closeDate || '—'}</td>
                     <td className={`${styles.td} ${styles.mono}`} style={{ color: dteCol, fontWeight: 600 }}>
                       {dteVal !== null ? (dteVal <= 0 ? 'EXP' : dteVal + 'd') : '—'}
                     </td>
