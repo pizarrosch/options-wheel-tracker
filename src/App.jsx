@@ -230,7 +230,7 @@ export default function App() {
       )}
 
       <main className={styles.main} style={{ padding: isMobile ? '14px 12px 80px' : '24px' }}>
-        {view === 'dashboard' && <Dashboard st={st} isMobile={isMobile} />}
+        {view === 'dashboard' && <Dashboard st={st} isMobile={isMobile} onEdit={doEdit} />}
         {view === 'positions' && (
           <PositionsView
             filtered={filtered} filter={filter} setFilter={setFilter}

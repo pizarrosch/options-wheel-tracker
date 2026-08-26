@@ -1,4 +1,4 @@
-import { B, D, M, G, R, YL, PC } from '../../theme';
+import { B, D, M, G, R, BL, YL, PC } from '../../theme';
 import { DTE, CUR, NUM } from '../../utils/calculations';
 import { StatCard } from '../StatCard/StatCard';
 import { GreeksCard } from '../GreeksCard/GreeksCard';
@@ -6,7 +6,7 @@ import { PhaseChart } from '../PhaseChart/PhaseChart';
 import { TickerChart } from '../TickerChart/TickerChart';
 import styles from './Dashboard.module.css';
 
-export function Dashboard({ st, isMobile }) {
+export function Dashboard({ st, isMobile, onEdit }) {
   return (
     <div className={styles.root}>
       <div className={`${styles.statGrid} ${isMobile ? styles.statGridMobile : styles.statGridDesktop}`}>
@@ -54,6 +54,13 @@ export function Dashboard({ st, isMobile }) {
                   <span style={{ color: col, fontFamily: 'monospace', fontWeight: 700 }}>
                     {p.dte <= 0 ? 'EXP' : p.dte + 'd'}
                   </span>
+                  <button
+                    onClick={() => onEdit(p)}
+                    className={styles.btnEdit}
+                    style={{ background: BL + '22', borderColor: BL + '44', color: BL }}
+                  >
+                    Edit
+                  </button>
                 </div>
               </div>
             );
