@@ -24,7 +24,7 @@ export function PhaseChart({ phaseMix }) {
           >
             {phaseMix.map((e, i) => <Cell key={e.name} fill={PC[e.name] || TC[i]} />)}
           </Pie>
-          <Tooltip contentStyle={tooltipStyle} />
+          <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: T }} labelStyle={{ color: T }} />
         </PieChart>
       </ResponsiveContainer>
     </div>

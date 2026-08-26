@@ -3,7 +3,7 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid, Cell,
 } from 'recharts';
-import { G, R, M, D, tooltipStyle } from '../../theme';
+import { G, R, M, D, T, tooltipStyle } from '../../theme';
 import { CUR, NUM, realPnl } from '../../utils/calculations';
 import { RANGES, rangeStart, buildPnlSeries, buildBarSeries, buildMonthlySeries } from '../../utils/pnlSeries';
 import { StatCard } from '../StatCard/StatCard';
@@ -80,7 +80,7 @@ export function AnalyticsView({ positions, isMobile }) {
               <CartesianGrid strokeDasharray="3 3" stroke={D} />
               <XAxis dataKey="date" tick={{ fill: M, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={fmtDate} />
               <YAxis tick={{ fill: M, fontSize: 10 }} axisLine={false} tickLine={false} width={yWidth} tickFormatter={v => '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 })} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [CUR(v), n === 'cumulative' ? 'Cumulative' : 'Daily']} labelFormatter={fmtFull} />
+              <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: T }} labelStyle={{ color: T }} formatter={(v, n) => [CUR(v), n === 'cumulative' ? 'Cumulative' : 'Daily']} labelFormatter={fmtFull} />
               <ReferenceLine y={0} stroke={D} strokeWidth={1.5} />
               <Area type="monotone" dataKey="cumulative" stroke={isPos ? G : R} strokeWidth={2.5} fill="url(#pnlGrad)" dot={{ fill: isPos ? G : R, r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} />
             </AreaChart>
@@ -98,7 +98,7 @@ export function AnalyticsView({ positions, isMobile }) {
               <CartesianGrid strokeDasharray="3 3" stroke={D} vertical={false} />
               <XAxis dataKey="date" tick={{ fill: M, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={fmtDate} />
               <YAxis tick={{ fill: M, fontSize: 10 }} axisLine={false} tickLine={false} width={yWidth} tickFormatter={v => '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 })} />
-              <Tooltip contentStyle={tooltipStyle} formatter={v => [CUR(v), 'P&L']} labelFormatter={fmtFull} />
+              <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: T }} labelStyle={{ color: T }} formatter={v => [CUR(v), 'P&L']} labelFormatter={fmtFull} />
               <ReferenceLine y={0} stroke={D} />
               <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
                 {barSeries.map((e, i) => <Cell key={i} fill={e.pnl >= 0 ? G : R} />)}
@@ -119,7 +119,7 @@ export function AnalyticsView({ positions, isMobile }) {
                 <CartesianGrid strokeDasharray="3 3" stroke={D} vertical={false} />
                 <XAxis dataKey="label" tick={{ fill: M, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: M, fontSize: 10 }} axisLine={false} tickLine={false} width={yWidth} tickFormatter={v => '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 })} />
-                <Tooltip contentStyle={tooltipStyle} formatter={v => [CUR(v), 'P&L']} labelFormatter={l => l} />
+                <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: T }} labelStyle={{ color: T }} formatter={v => [CUR(v), 'P&L']} labelFormatter={l => l} />
                 <ReferenceLine y={0} stroke={D} />
                 <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
                   {monthlySeries.map((e, i) => <Cell key={i} fill={e.pnl >= 0 ? G : R} />)}
