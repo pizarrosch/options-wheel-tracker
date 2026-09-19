@@ -4,18 +4,28 @@ import { StatCard } from '../StatCard/StatCard';
 import { GreeksCard } from '../GreeksCard/GreeksCard';
 import { PhaseChart } from '../PhaseChart/PhaseChart';
 import { TickerChart } from '../TickerChart/TickerChart';
+import { HoldingsTable } from '../HoldingsTable/HoldingsTable';
 import styles from './Dashboard.module.css';
 
-export function Dashboard({ st, isMobile, onEdit }) {
+export function Dashboard({ st, holdings, isMobile, onEdit }) {
+  const stockPnl   = st.stockReal + st.stockUnreal;
+  const overallPnl = st.totRealized + st.totUnreal;
+
   return (
     <div className={styles.root}>
       <div className={`${styles.statGrid} ${isMobile ? styles.statGridMobile : styles.statGridDesktop}`}>
         <StatCard label="Open Premium" val={'$' + NUM(st.openPremium)} color={YL} sub="Open positions" />
-        <StatCard label="Realized P&L" val={CUR(st.totPremium)} color={st.totPremium >= 0 ? G : R} sub="CSP & CC" />
-        <StatCard label="Unrealized P&L" val={CUR(st.totUnreal)} color={st.totUnreal >= 0 ? G : R} sub="Current marks" />
-        <StatCard label="Capital at Risk" val={'$' + NUM(st.totCap)} />
+        <StatCard label="Realized Premium" val={CUR(st.totPremium)} color={st.totPremium >= 0 ? G : R} sub="CSP & CC" />
+        <StatCard label="Unrealized P&L" val={CUR(st.optUnreal)} color={st.optUnreal >= 0 ? G : R} sub="Open option marks" />
+        <StatCard
+          label="Stock P&L"
+          val={CUR(stockPnl)}
+          color={stockPnl >= 0 ? G : R}
+          sub={holdings.totals.shares ? `${NUM(holdings.totals.shares, 0)} sh held · ${CUR(st.stockReal)} realized` : 'Assigned shares'}
+        />
+        <StatCard label="Capital at Risk" val={'$' + NUM(st.totCap)} sub={holdings.totals.cost ? `incl. $${NUM(holdings.totals.cost)} in shares` : undefined} />
         <StatCard label="Win Rate" val={NUM(st.winRate, 1) + '%'} color={st.winRate >= 70 ? G : st.winRate >= 50 ? YL : R} sub={`${st.wins}/${st.closedCount} closed`} />
-        <StatCard label="Overall P&L" val={CUR(st.totRealized + st.totUnreal)} color={(st.totRealized + st.totUnreal) >= 0 ? G : R} sub="Realized + Unrlzd" />
+        <StatCard label="Overall P&L" val={CUR(overallPnl)} color={overallPnl >= 0 ? G : R} sub="Premium + stock" />
       </div>
 
       {isMobile ? (
@@ -31,6 +41,8 @@ export function Dashboard({ st, isMobile, onEdit }) {
           <TickerChart tickerConc={st.tickerConc} />
         </div>
       )}
+
+      <HoldingsTable holdings={holdings} isMobile={isMobile} />
 
       <div className={styles.expirations}>
         <div className={styles.sectionLabel}>Upcoming Expirations</div>

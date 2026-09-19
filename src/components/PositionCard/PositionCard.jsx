@@ -1,5 +1,6 @@
 import { C, D, M, G, R, BL, YL, PC, SC } from '../../theme';
 import { DTE, NUM, CUR, isSpread, unrlPnl, realPnl, daysHeld } from '../../utils/calculations';
+import { assignmentDelta } from '../../utils/holdings';
 import { RorBadge } from '../RorBadge/RorBadge';
 import { PctBadge } from '../PctBadge/PctBadge';
 import styles from './PositionCard.module.css';
@@ -9,6 +10,7 @@ export function PositionCard({ pos, onEdit, onDelete }) {
   const dteCol = dteVal === null ? M : dteVal <= 7 ? R : dteVal <= 21 ? YL : G;
   const pnl    = pos.status === 'Open' ? unrlPnl(pos) : realPnl(pos);
   const held   = daysHeld(pos);
+  const assign = assignmentDelta(pos);
 
   return (
     <div className={styles.card}>
@@ -85,6 +87,14 @@ export function PositionCard({ pos, onEdit, onDelete }) {
           <div>
             <div className={styles.fieldLabel}>Multiplier</div>
             <div className={styles.mono}>×{pos.multiplier}</div>
+          </div>
+        )}
+        {assign && (
+          <div>
+            <div className={styles.fieldLabel}>{assign.dir > 0 ? 'Shares In' : 'Shares Out'}</div>
+            <div className={styles.mono} style={{ color: assign.dir > 0 ? G : YL, fontWeight: 600 }}>
+              {(assign.dir > 0 ? '+' : '−') + NUM(assign.shares, 0)} @ ${NUM(assign.price)}
+            </div>
           </div>
         )}
         {pos.currentMark && (

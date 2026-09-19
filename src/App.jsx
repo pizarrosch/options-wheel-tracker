@@ -3,6 +3,7 @@ import Papa from 'papaparse';
 
 import { B, T } from './theme';
 import { BLANK, TODAY, isSpread, capRisk, realPnl, unrlPnl, premTot, DTE, daysHeld, rorPct } from './utils/calculations';
+import { buildHoldings } from './utils/holdings';
 import { fetchMarketData } from './utils/marketData';
 import { useIsMobile } from './hooks/useIsMobile';
 
@@ -28,6 +29,9 @@ export default function App() {
   const isMobile = useIsMobile();
 
   const [positions, setPositions]     = useState([]);
+  const [quotes, setQuotes]           = useState(() => {
+    try { return JSON.parse(localStorage.getItem('wheel_quotes') || '{}'); } catch { return {}; }
+  });
   const [view, setView]               = useState('dashboard');
   const [showForm, setShowForm]       = useState(false);
   const [showImport, setShowImport]   = useState(false);
@@ -61,11 +65,20 @@ export default function App() {
       .catch(() => { try { localStorage.setItem('wheel_v2', JSON.stringify(positions)); } catch {} });
   }, [positions, loaded]);
 
+  const holdings = useMemo(() => buildHoldings(positions, quotes), [positions, quotes]);
+
   async function doRefresh() {
     setRefreshing(true); setRefreshErr(''); setRefreshLog('Starting…');
     try {
-      const { updated, log } = await fetchMarketData(positions, setRefreshLog);
-      setPositions(updated); setLastRefresh(new Date().toLocaleTimeString()); setRefreshLog(log);
+      const held = holdings.rows.map(r => r.ticker);
+      const { updated, quotes: fresh, log } = await fetchMarketData(positions, setRefreshLog, held);
+      setPositions(updated);
+      setQuotes(prev => {
+        const next = { ...prev, ...fresh };
+        try { localStorage.setItem('wheel_quotes', JSON.stringify(next)); } catch { /* storage unavailable */ }
+        return next;
+      });
+      setLastRefresh(new Date().toLocaleTimeString()); setRefreshLog(log);
     } catch (e) {
       setRefreshErr('Error: ' + e.message); setRefreshLog('');
     }
@@ -75,30 +88,39 @@ export default function App() {
   const st = useMemo(() => {
     const open   = positions.filter(p => p.status === 'Open');
     const closed = positions.filter(p => p.status !== 'Open');
-    const totPremium   = closed.filter(p => p.phase !== 'Stock').reduce((s, p) => s + realPnl(p), 0);
-    const openPremium  = open.filter(p => p.phase !== 'Stock').reduce((s, p) => s + premTot(p), 0);
-    const totRealized = closed.reduce((s, p) => s + realPnl(p), 0);
-    const totUnreal   = open.reduce((s, p) => s + unrlPnl(p), 0);
-    const totCap      = open.reduce((s, p) => s + capRisk(p), 0);
-    const wins        = closed.filter(p => realPnl(p) > 0).length;
-    const winRate     = closed.length ? (wins / closed.length) * 100 : 0;
+    // Stock rows are priced by the holdings ledger, not here, so their P&L and
+    // capital aren't counted twice.
+    const openOpts   = open.filter(p => p.phase !== 'Stock');
+    const closedOpts = closed.filter(p => p.phase !== 'Stock');
+    const totPremium   = closedOpts.reduce((s, p) => s + realPnl(p), 0);
+    const openPremium  = openOpts.reduce((s, p) => s + premTot(p), 0);
+    const optUnreal    = openOpts.reduce((s, p) => s + unrlPnl(p), 0);
+    const stockReal    = holdings.totals.realizedPnl;
+    const stockUnreal  = holdings.totals.unrealized;
+    const totRealized  = totPremium + stockReal;
+    const totUnreal    = optUnreal + stockUnreal;
+    const totCap       = openOpts.reduce((s, p) => s + capRisk(p), 0) + holdings.totals.cost;
+    const wins        = closedOpts.filter(p => realPnl(p) > 0).length;
+    const winRate     = closedOpts.length ? (wins / closedOpts.length) * 100 : 0;
     const netDelta    = open.reduce((s, p) => s + (parseFloat(p.delta) || 0), 0);
     const netTheta    = open.reduce((s, p) => s + (parseFloat(p.theta) || 0), 0);
     const netVega     = open.reduce((s, p) => s + (parseFloat(p.vega) || 0), 0);
-    const phaseMix    = ['CSP', 'CC', 'Stock', 'Put Spread', 'Call Spread']
-      .map(ph => ({ name: ph, value: open.filter(p => p.phase === ph).length }))
+    const phaseMix    = ['CSP', 'CC', 'Put Spread', 'Call Spread']
+      .map(ph => ({ name: ph, value: openOpts.filter(p => p.phase === ph).length }))
+      .concat({ name: 'Stock', value: holdings.rows.length })
       .filter(x => x.value > 0);
     const tickMap = {};
-    open.forEach(p => { const cap = capRisk(p); tickMap[p.ticker] = (tickMap[p.ticker] || 0) + cap; });
+    openOpts.forEach(p => { const cap = capRisk(p); tickMap[p.ticker] = (tickMap[p.ticker] || 0) + cap; });
+    holdings.rows.forEach(r => { tickMap[r.ticker] = (tickMap[r.ticker] || 0) + r.cost; });
     const tickerConc = Object.entries(tickMap)
       .map(([ticker, capital]) => ({ ticker, capital }))
       .sort((a, b) => b.capital - a.capital);
-    const expirations = open
-      .filter(p => p.expiry && p.phase !== 'Stock')
+    const expirations = openOpts
+      .filter(p => p.expiry)
       .map(p => ({ ...p, dte: DTE(p.expiry) }))
       .sort((a, b) => a.dte - b.dte);
-    return { totPremium, openPremium, totRealized, totUnreal, totCap, winRate, wins, openCount: open.length, closedCount: closed.length, netDelta, netTheta, netVega, phaseMix, tickerConc, expirations };
-  }, [positions]);
+    return { totPremium, openPremium, optUnreal, stockReal, stockUnreal, totRealized, totUnreal, totCap, winRate, wins, openCount: open.length, closedCount: closedOpts.length, netDelta, netTheta, netVega, phaseMix, tickerConc, expirations, holdings };
+  }, [positions, holdings]);
 
   const f = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
@@ -248,7 +270,7 @@ export default function App() {
       )}
 
       <main className={styles.main} style={{ padding: isMobile ? '14px 12px 80px' : '24px' }}>
-        {view === 'dashboard' && <Dashboard st={st} isMobile={isMobile} onEdit={doEdit} />}
+        {view === 'dashboard' && <Dashboard st={st} holdings={holdings} isMobile={isMobile} onEdit={doEdit} />}
         {view === 'positions' && (
           <PositionsView
             filtered={filtered} filter={filter} setFilter={setFilter}

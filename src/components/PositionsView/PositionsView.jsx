@@ -1,5 +1,6 @@
 import { M, G, R, BL, PC, SC, inputStyle } from '../../theme';
 import { DTE, CUR, NUM, isSpread, unrlPnl, realPnl, daysHeld } from '../../utils/calculations';
+import { assignmentDelta } from '../../utils/holdings';
 import { RorBadge } from '../RorBadge/RorBadge';
 import { PctBadge } from '../PctBadge/PctBadge';
 import { PositionCard } from '../PositionCard/PositionCard';
@@ -16,6 +17,7 @@ const TABLE_COLS = [
   ['Premium/ct',  'premium'],
   ['Mark',        null],
   ['Contracts',   'contracts'],
+  ['Shares',      null],
   ['P&L',         'pnl'],
   ['RoR',         'ror'],
   ['% Captured',  null],
@@ -126,13 +128,14 @@ export function PositionsView({ filtered, filter, setFilter, sort, setSort, expM
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={15} className={styles.emptyCell}>No positions. Add a trade or import CSV.</td></tr>
+                <tr><td colSpan={16} className={styles.emptyCell}>No positions. Add a trade or import CSV.</td></tr>
               )}
               {filtered.map(pos => {
                 const dteVal = pos.phase !== 'Stock' ? DTE(pos.expiry) : null;
                 const dteCol = dteVal === null ? M : dteVal <= 0 ? R : dteVal <= 7 ? R : dteVal <= 21 ? '#e3b341' : G;
                 const pnl    = pos.status === 'Open' ? unrlPnl(pos) : realPnl(pos);
                 const held   = daysHeld(pos);
+                const assign = assignmentDelta(pos);
                 return (
                   <tr
                     key={pos.id}
@@ -162,6 +165,11 @@ export function PositionsView({ filtered, filter, setFilter, sort, setSort, expM
                     <td className={`${styles.td} ${styles.mono}`}>
                       {pos.contracts}
                       {pos.phase !== 'Stock' && pos.multiplier && pos.multiplier !== '100' ? ` ×${pos.multiplier}` : ''}
+                    </td>
+                    <td className={`${styles.td} ${styles.mono}`} style={{ color: assign ? (assign.dir > 0 ? G : '#e3b341') : M, fontWeight: assign ? 600 : 400 }}>
+                      {assign
+                        ? `${assign.dir > 0 ? '+' : '−'}${NUM(assign.shares, 0)} @ $${NUM(assign.price)}`
+                        : pos.phase === 'Stock' ? NUM(parseInt(pos.shares) || 0, 0) : '—'}
                     </td>
                     <td className={`${styles.td} ${styles.mono}`} style={{ color: pnl >= 0 ? G : R, fontWeight: 600 }}>
                       {pnl !== 0 ? CUR(pnl) : '—'}

@@ -1,0 +1,143 @@
+import { MUL, realPnl } from './calculations';
+
+// Futures options settle in cash for our purposes — they never deliver shares.
+export const isFutures = t => (t || '').startsWith('/');
+
+// Shares an option contract delivers on assignment.
+export const contractShares = p => (parseInt(p.contracts) || 1) * MUL(p);
+
+// Best-effort date an event actually happened.
+const eventDate = p => p.closeDate || p.expiry || p.openDate || '';
+
+// Shares an assigned option row moves: CSP delivers them, CC takes them away.
+export function assignmentDelta(p) {
+  if (p.status !== 'Assigned' || isFutures(p.ticker)) return null;
+  if (p.phase !== 'CSP' && p.phase !== 'CC') return null;
+  const shares = contractShares(p);
+  const price  = parseFloat(p.strike) || 0;
+  if (!shares) return null;
+  return { shares, price, dir: p.phase === 'CSP' ? 1 : -1 };
+}
+
+function collectEvents(positions) {
+  const events = [];
+  positions.forEach(p => {
+    if (isFutures(p.ticker) || !p.ticker) return;
+
+    if (p.phase === 'Stock') {
+      const shares = parseInt(p.shares) || 0;
+      if (!shares) return;
+      events.push({
+        type: 'buy', ticker: p.ticker, date: p.openDate || '', shares,
+        price: parseFloat(p.costBasis) || 0, id: p.id, source: 'Purchase',
+      });
+      if (p.status !== 'Open') {
+        events.push({
+          type: 'sell', ticker: p.ticker, date: eventDate(p), shares,
+          price: parseFloat(p.closePrice) || 0, id: p.id, source: 'Sale',
+        });
+      }
+      return;
+    }
+
+    const d = assignmentDelta(p);
+    if (!d) return;
+    events.push({
+      type: d.dir > 0 ? 'buy' : 'sell', ticker: p.ticker, date: eventDate(p),
+      shares: d.shares, price: d.price, id: p.id,
+      // The assigning put's collateral converted into these shares, so its
+      // credit belongs to the lot.
+      credit: d.dir > 0 ? realPnl(p) : 0,
+      source: d.dir > 0 ? 'Put assignment' : 'Called away',
+    });
+  });
+  // Undated rows sort last so they can't consume shares they never had.
+  return events.sort((a, b) => (a.date || '9999-99-99').localeCompare(b.date || '9999-99-99'));
+}
+
+/**
+ * Folds assignment + stock events into a per-ticker share ledger.
+ *
+ * Basis is raw (strike paid), never premium-adjusted: option premium is its own
+ * realized stream, so baking it into basis would double-count it in overall P&L.
+ * `adjBasis` is the display-only wheel breakeven — basis less every premium
+ * realized on the ticker since the current lot was opened.
+ */
+export function buildHoldings(positions, quotes = {}) {
+  const events = collectEvents(positions);
+  const book = {};
+  const realizedEvents = [];
+
+  const get = t => (book[t] ||= {
+    ticker: t, shares: 0, cost: 0, realizedPnl: 0, premium: 0,
+    acquired: null, lots: [], warnings: [],
+  });
+
+  events.forEach(e => {
+    const h = get(e.ticker);
+    if (e.type === 'buy') {
+      if (h.shares === 0) { h.acquired = e.date; h.lots = []; h.premium = 0; }
+      h.premium += e.credit || 0;
+      h.shares += e.shares;
+      h.cost   += e.shares * e.price;
+      h.lots.push(e);
+      return;
+    }
+    const sold = Math.min(e.shares, h.shares);
+    if (sold < e.shares) {
+      h.warnings.push(`${e.source} of ${e.shares} sh on ${e.date || 'unknown date'} exceeds the ${h.shares} sh on record`);
+    }
+    if (!sold) return;
+    const basis = h.cost / h.shares;
+    const pnl   = (e.price - basis) * sold;
+    h.realizedPnl += pnl;
+    h.cost   -= basis * sold;
+    h.shares -= sold;
+    realizedEvents.push({ date: e.date, ticker: e.ticker, pnl, source: e.source, shares: sold });
+    if (h.shares === 0) { h.cost = 0; h.acquired = null; h.premium = 0; }
+  });
+
+  // Covered calls written against the open lot. Puts are deliberately excluded
+  // here: a cash-secured put is collateralized by its own cash, not by these
+  // shares, so its credit has no claim on the lot. The one put that does count
+  // is the assigning one, added above as the lot's credit.
+  positions.forEach(p => {
+    if (p.phase !== 'CC' || p.status === 'Open' || isFutures(p.ticker)) return;
+    const h = book[p.ticker];
+    if (!h || !h.shares || !h.acquired) return;
+    const d = eventDate(p);
+    if (d && d < h.acquired) return;
+    h.premium += realPnl(p);
+  });
+
+  const rows = Object.values(book)
+    .filter(h => h.shares > 0)
+    .map(h => {
+      const avgBasis = h.cost / h.shares;
+      const adjBasis = avgBasis - h.premium / h.shares;
+      const last     = parseFloat(quotes[h.ticker]);
+      const hasLast  = Number.isFinite(last);
+      return {
+        ...h,
+        avgBasis,
+        adjBasis,
+        last:       hasLast ? last : null,
+        value:      hasLast ? last * h.shares : null,
+        unrealized: hasLast ? (last - avgBasis) * h.shares : null,
+        pctVsBasis: hasLast && avgBasis ? ((last - avgBasis) / avgBasis) * 100 : null,
+      };
+    })
+    .sort((a, b) => b.cost - a.cost);
+
+  const totals = {
+    shares:     rows.reduce((s, r) => s + r.shares, 0),
+    cost:       rows.reduce((s, r) => s + r.cost, 0),
+    value:      rows.reduce((s, r) => s + (r.value ?? r.cost), 0),
+    unrealized: rows.reduce((s, r) => s + (r.unrealized ?? 0), 0),
+    realizedPnl: Object.values(book).reduce((s, h) => s + h.realizedPnl, 0),
+  };
+
+  const warnings = Object.values(book).flatMap(h => h.warnings.map(w => `${h.ticker}: ${w}`));
+
+  return { rows, byTicker: book, totals, realizedEvents, warnings };
+}

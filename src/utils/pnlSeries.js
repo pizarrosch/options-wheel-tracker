@@ -1,4 +1,23 @@
 import { realPnl } from './calculations';
+import { buildHoldings } from './holdings';
+
+// Realized P&L per date: option premium off the rows themselves, stock legs off
+// the assignment ledger. Stock rows are excluded here — the ledger books them.
+function realizedByDate(positions, start) {
+  const byDate = {};
+  const add = (date, pnl) => { if (date && new Date(date) >= start) byDate[date] = (byDate[date] || 0) + pnl; };
+  positions
+    .filter(p => p.status !== 'Open' && p.phase !== 'Stock' && p.closeDate)
+    .forEach(p => add(p.closeDate, realPnl(p)));
+  buildHoldings(positions).realizedEvents.forEach(e => add(e.date, e.pnl));
+  return byDate;
+}
+
+export function realizedTrades(positions, start) {
+  return positions.filter(
+    p => p.status !== 'Open' && p.phase !== 'Stock' && p.closeDate && new Date(p.closeDate) >= start
+  );
+}
 
 export const RANGES = ['1D', '1W', 'MTD', '3M', '6M', 'YTD', '1Y', 'All'];
 
@@ -19,13 +38,8 @@ export function rangeStart(key) {
 }
 
 export function buildPnlSeries(positions, range) {
-  const start = rangeStart(range);
-  const closed = positions.filter(
-    p => p.status !== 'Open' && p.closeDate && new Date(p.closeDate) >= start
-  );
-  if (!closed.length) return [];
-  const byDate = {};
-  closed.forEach(p => { byDate[p.closeDate] = (byDate[p.closeDate] || 0) + realPnl(p); });
+  const byDate = realizedByDate(positions, rangeStart(range));
+  if (!Object.keys(byDate).length) return [];
   let cum = 0;
   return Object.keys(byDate)
     .sort()
@@ -33,26 +47,19 @@ export function buildPnlSeries(positions, range) {
 }
 
 export function buildBarSeries(positions, range) {
-  const start = rangeStart(range);
-  const closed = positions.filter(
-    p => p.status !== 'Open' && p.closeDate && new Date(p.closeDate) >= start
-  );
-  const byDate = {};
-  closed.forEach(p => { byDate[p.closeDate] = (byDate[p.closeDate] || 0) + realPnl(p); });
+  const byDate = realizedByDate(positions, rangeStart(range));
   return Object.entries(byDate)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, pnl]) => ({ date, pnl: parseFloat(pnl.toFixed(2)) }));
 }
 
 export function buildMonthlySeries(positions) {
-  const closed = positions.filter(p => p.status !== 'Open' && p.closeDate);
+  const byDate = realizedByDate(positions, new Date('2000-01-01'));
+  const trades = realizedTrades(positions, new Date('2000-01-01'));
   const byMonth = {};
-  closed.forEach(p => {
-    const key = p.closeDate.slice(0, 7);
-    if (!byMonth[key]) byMonth[key] = { pnl: 0, trades: 0 };
-    byMonth[key].pnl += realPnl(p);
-    byMonth[key].trades += 1;
-  });
+  const bucket = key => (byMonth[key] ||= { pnl: 0, trades: 0 });
+  Object.entries(byDate).forEach(([date, pnl]) => { bucket(date.slice(0, 7)).pnl += pnl; });
+  trades.forEach(p => { bucket(p.closeDate.slice(0, 7)).trades += 1; });
   return Object.keys(byMonth)
     .sort()
     .map(key => ({

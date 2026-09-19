@@ -1,10 +1,14 @@
-export async function fetchMarketData(positions, setLog) {
+export async function fetchMarketData(positions, setLog, heldTickers = []) {
   const open = positions.filter(p => p.status === 'Open');
-  if (!open.length) return { updated: positions, log: 'No open positions.' };
+  const isFutures = t => t.startsWith('/');
+  const tickers = [...new Set([
+    ...open.filter(p => !isFutures(p.ticker)).map(p => p.ticker),
+    ...heldTickers.filter(t => t && !isFutures(t)),
+  ])];
+  if (!open.length && !tickers.length) return { updated: positions, quotes: {}, log: 'Nothing to price.' };
 
   const updated = positions.map(p => ({ ...p }));
-  const isFutures = t => t.startsWith('/');
-  const tickers = [...new Set(open.filter(p => !isFutures(p.ticker)).map(p => p.ticker))];
+  const quotes = {};
   const logs = [];
 
   setLog('Fetching quotes…');
@@ -15,6 +19,7 @@ export async function fetchMarketData(positions, setLog) {
     quoteList.forEach(q => {
       const price = q.last ?? q.bid;
       if (!price) return;
+      quotes[q.symbol] = price.toFixed(2);
       open
         .filter(p => p.ticker === q.symbol && p.phase === 'Stock')
         .forEach(p => {
@@ -73,5 +78,5 @@ export async function fetchMarketData(positions, setLog) {
     }
   }
 
-  return { updated, log: logs.join(' · ') || 'Done' };
+  return { updated, quotes, log: logs.join(' · ') || 'Done' };
 }

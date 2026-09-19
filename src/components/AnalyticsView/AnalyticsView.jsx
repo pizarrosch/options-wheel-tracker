@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { G, R, M, D, T, tooltipStyle } from '../../theme';
 import { CUR, NUM, realPnl } from '../../utils/calculations';
-import { RANGES, rangeStart, buildPnlSeries, buildBarSeries, buildMonthlySeries } from '../../utils/pnlSeries';
+import { RANGES, rangeStart, realizedTrades, buildPnlSeries, buildBarSeries, buildMonthlySeries } from '../../utils/pnlSeries';
 import { StatCard } from '../StatCard/StatCard';
 import styles from './AnalyticsView.module.css';
 
@@ -20,8 +20,9 @@ export function AnalyticsView({ positions, isMobile }) {
   const monthlySeries = useMemo(() => buildMonthlySeries(positions), [positions]);
 
   const start    = rangeStart(range);
-  const closed   = positions.filter(p => p.status !== 'Open' && p.closeDate && new Date(p.closeDate) >= start);
-  const totPnl   = closed.reduce((s, p) => s + realPnl(p), 0);
+  // Win rate counts option trades; total P&L follows the chart, stock legs included.
+  const closed   = realizedTrades(positions, start);
+  const totPnl   = barSeries.reduce((s, d) => s + d.pnl, 0);
   const wins     = closed.filter(p => realPnl(p) > 0).length;
   const winRate  = closed.length ? (wins / closed.length) * 100 : 0;
   const bestDay  = barSeries.length ? Math.max(...barSeries.map(d => d.pnl)) : 0;
