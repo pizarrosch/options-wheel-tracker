@@ -40,6 +40,14 @@ function collectEvents(positions) {
       return;
     }
 
+    // A realized covered call credits whichever lot was open when it settled.
+    if (p.phase === 'CC' && p.status !== 'Open') {
+      events.push({
+        type: 'credit', ticker: p.ticker, date: eventDate(p),
+        amount: realPnl(p), id: p.id, source: 'Covered call',
+      });
+    }
+
     const d = assignmentDelta(p);
     if (!d) return;
     events.push({
@@ -51,8 +59,13 @@ function collectEvents(positions) {
       source: d.dir > 0 ? 'Put assignment' : 'Called away',
     });
   });
-  // Undated rows sort last so they can't consume shares they never had.
-  return events.sort((a, b) => (a.date || '9999-99-99').localeCompare(b.date || '9999-99-99'));
+  // Undated rows sort last so they can't consume shares they never had. On a
+  // shared date shares arrive, then credits land, then shares leave — so a call
+  // that is assigned credits its own cycle before closing it.
+  const ORDER = { buy: 0, credit: 1, sell: 2 };
+  return events.sort(
+    (a, b) => (a.date || '9999-99-99').localeCompare(b.date || '9999-99-99') || ORDER[a.type] - ORDER[b.type]
+  );
 }
 
 /**
@@ -67,6 +80,7 @@ export function buildHoldings(positions, quotes = {}) {
   const events = collectEvents(positions);
   const book = {};
   const realizedEvents = [];
+  const closedLots = [];
 
   const get = t => (book[t] ||= {
     ticker: t, shares: 0, cost: 0, realizedPnl: 0, premium: 0,
@@ -83,6 +97,12 @@ export function buildHoldings(positions, quotes = {}) {
       h.lots.push(e);
       return;
     }
+    if (e.type === 'credit') {
+      // Credits only belong to a lot that was actually open to write against.
+      if (h.shares > 0) h.premium += e.amount;
+      return;
+    }
+
     const sold = Math.min(e.shares, h.shares);
     if (sold < e.shares) {
       h.warnings.push(`${e.source} of ${e.shares} sh on ${e.date || 'unknown date'} exceeds the ${h.shares} sh on record`);
@@ -90,24 +110,22 @@ export function buildHoldings(positions, quotes = {}) {
     if (!sold) return;
     const basis = h.cost / h.shares;
     const pnl   = (e.price - basis) * sold;
+    // Credits leave with the shares they were earned on, so a partial exit
+    // can't spend the whole lot's premium and neither can what remains.
+    const premiumOut = h.premium * (sold / h.shares);
     h.realizedPnl += pnl;
-    h.cost   -= basis * sold;
-    h.shares -= sold;
+    closedLots.push({
+      ticker: e.ticker, shares: sold, acquired: h.acquired, date: e.date,
+      basis, exit: e.price, stockPnl: pnl, premium: premiumOut,
+      total: pnl + premiumOut, source: e.source,
+      days: h.acquired && e.date ? Math.round((new Date(e.date) - new Date(h.acquired)) / 86400000) : null,
+      pctReturn: basis * sold ? ((pnl + premiumOut) / (basis * sold)) * 100 : null,
+    });
     realizedEvents.push({ date: e.date, ticker: e.ticker, pnl, source: e.source, shares: sold });
+    h.cost    -= basis * sold;
+    h.premium -= premiumOut;
+    h.shares  -= sold;
     if (h.shares === 0) { h.cost = 0; h.acquired = null; h.premium = 0; }
-  });
-
-  // Covered calls written against the open lot. Puts are deliberately excluded
-  // here: a cash-secured put is collateralized by its own cash, not by these
-  // shares, so its credit has no claim on the lot. The one put that does count
-  // is the assigning one, added above as the lot's credit.
-  positions.forEach(p => {
-    if (p.phase !== 'CC' || p.status === 'Open' || isFutures(p.ticker)) return;
-    const h = book[p.ticker];
-    if (!h || !h.shares || !h.acquired) return;
-    const d = eventDate(p);
-    if (d && d < h.acquired) return;
-    h.premium += realPnl(p);
   });
 
   const rows = Object.values(book)
@@ -145,5 +163,7 @@ export function buildHoldings(positions, quotes = {}) {
 
   const warnings = Object.values(book).flatMap(h => h.warnings.map(w => `${h.ticker}: ${w}`));
 
-  return { rows, byTicker: book, totals, realizedEvents, warnings };
+  closedLots.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  return { rows, byTicker: book, totals, closedLots, realizedEvents, warnings };
 }

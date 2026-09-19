@@ -5,6 +5,7 @@ import { GreeksCard } from '../GreeksCard/GreeksCard';
 import { PhaseChart } from '../PhaseChart/PhaseChart';
 import { TickerChart } from '../TickerChart/TickerChart';
 import { HoldingsTable } from '../HoldingsTable/HoldingsTable';
+import { ClosedLots } from '../ClosedLots/ClosedLots';
 import styles from './Dashboard.module.css';
 
 export function Dashboard({ st, holdings, isMobile, onEdit }) {
@@ -43,6 +44,8 @@ export function Dashboard({ st, holdings, isMobile, onEdit }) {
       )}
 
       <HoldingsTable holdings={holdings} isMobile={isMobile} />
+
+      <ClosedLots lots={holdings.closedLots} isMobile={isMobile} />
 
       <div className={styles.expirations}>
         <div className={styles.sectionLabel}>Upcoming Expirations</div>
