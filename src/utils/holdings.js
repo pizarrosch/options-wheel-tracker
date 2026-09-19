@@ -123,7 +123,12 @@ export function buildHoldings(positions, quotes = {}) {
         adjBasis,
         last:       hasLast ? last : null,
         value:      hasLast ? last * h.shares : null,
+        // vs raw basis — the only one that may be summed with realized premium.
         unrealized: hasLast ? (last - avgBasis) * h.shares : null,
+        // vs adjusted basis: the lot all-in, credits included. Display only —
+        // those credits are already booked as realized premium, so adding this
+        // to premium would count them twice.
+        unrealizedAdj: hasLast ? (last - adjBasis) * h.shares : null,
         pctVsBasis: hasLast && avgBasis ? ((last - avgBasis) / avgBasis) * 100 : null,
       };
     })
@@ -133,7 +138,8 @@ export function buildHoldings(positions, quotes = {}) {
     shares:     rows.reduce((s, r) => s + r.shares, 0),
     cost:       rows.reduce((s, r) => s + r.cost, 0),
     value:      rows.reduce((s, r) => s + (r.value ?? r.cost), 0),
-    unrealized: rows.reduce((s, r) => s + (r.unrealized ?? 0), 0),
+    unrealized:    rows.reduce((s, r) => s + (r.unrealized ?? 0), 0),
+    unrealizedAdj: rows.reduce((s, r) => s + (r.unrealizedAdj ?? 0), 0),
     realizedPnl: Object.values(book).reduce((s, h) => s + h.realizedPnl, 0),
   };
 

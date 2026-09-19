@@ -2,13 +2,25 @@ import { M, G, R, YL, T } from '../../theme';
 import { NUM, CUR } from '../../utils/calculations';
 import styles from './HoldingsTable.module.css';
 
-const COLS = ['Ticker', 'Shares', 'Avg Basis', 'Adj. Basis', 'Last', 'Market Value', 'Unrealized', 'vs Basis'];
+const COLS = ['Ticker', 'Shares', 'Avg Basis', 'Adj. Basis', 'Last', 'Market Value', 'Unrealized', 'All-in', 'vs Basis'];
 
 // Basis less the put credit that bought the shares plus every covered call
 // realized since — the price the shares must reach for the cycle to be flat.
 const AdjBasis = ({ row }) => (
   <span style={{ color: row.premium > 0 ? G : M }} title={`$${NUM(row.premium)} put credit + covered calls since ${row.acquired || 'acquisition'}`}>
     ${NUM(row.adjBasis)}
+  </span>
+);
+
+// Shares measured against adjusted basis — the whole wheel cycle marked to
+// market. Already includes premium the dashboard books as realized, so it is
+// never summed into Overall P&L.
+const AllIn = ({ row }) => (
+  <span
+    style={{ color: (row.unrealizedAdj ?? 0) >= 0 ? G : R, fontWeight: 600 }}
+    title="Unrealized against adjusted basis — includes premium already counted in Realized Premium"
+  >
+    {row.unrealizedAdj == null ? '—' : CUR(row.unrealizedAdj)}
   </span>
 );
 
@@ -24,6 +36,12 @@ export function HoldingsTable({ holdings, isMobile }) {
             <span style={{ color: M }}>{NUM(totals.shares, 0)} sh · cost ${NUM(totals.cost)}</span>
             <span style={{ color: totals.unrealized >= 0 ? G : R, fontFamily: 'monospace', fontWeight: 700 }}>
               {CUR(totals.unrealized)}
+            </span>
+            <span
+              style={{ color: totals.unrealizedAdj >= 0 ? G : R, fontFamily: 'monospace' }}
+              title="All-in against adjusted basis, premium included"
+            >
+              ({CUR(totals.unrealizedAdj)} all-in)
             </span>
           </div>
         )}
@@ -55,6 +73,7 @@ export function HoldingsTable({ holdings, isMobile }) {
                 <div><div className={styles.fieldLabel}>Adj. Basis</div><div className={styles.mono}><AdjBasis row={r} /></div></div>
                 <div><div className={styles.fieldLabel}>Last</div><div className={styles.mono}>{r.last == null ? '—' : '$' + NUM(r.last)}</div></div>
                 <div><div className={styles.fieldLabel}>Value</div><div className={styles.mono}>{r.value == null ? '—' : '$' + NUM(r.value)}</div></div>
+                <div><div className={styles.fieldLabel}>All-in</div><div className={styles.mono}><AllIn row={r} /></div></div>
               </div>
             </div>
           ))}
@@ -77,6 +96,7 @@ export function HoldingsTable({ holdings, isMobile }) {
                   <td className={`${styles.td} ${styles.mono}`} style={{ color: (r.unrealized ?? 0) >= 0 ? G : R, fontWeight: 600 }}>
                     {r.unrealized == null ? '—' : CUR(r.unrealized)}
                   </td>
+                  <td className={`${styles.td} ${styles.mono}`}><AllIn row={r} /></td>
                   <td className={`${styles.td} ${styles.mono}`} style={{ color: (r.pctVsBasis ?? 0) >= 0 ? G : R }}>
                     {r.pctVsBasis == null ? '—' : (r.pctVsBasis >= 0 ? '+' : '') + NUM(r.pctVsBasis, 1) + '%'}
                   </td>
