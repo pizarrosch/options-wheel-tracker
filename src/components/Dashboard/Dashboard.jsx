@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { B, D, M, G, R, BL, YL, PC } from '../../theme';
 import { DTE, CUR, NUM } from '../../utils/calculations';
 import { StatCard } from '../StatCard/StatCard';
@@ -8,9 +9,16 @@ import { HoldingsTable } from '../HoldingsTable/HoldingsTable';
 import { ClosedLots } from '../ClosedLots/ClosedLots';
 import styles from './Dashboard.module.css';
 
+const EXPIRATION_PREVIEW = 10;
+
 export function Dashboard({ st, holdings, isMobile, onEdit }) {
+  const [showAllExpirations, setShowAllExpirations] = useState(false);
   const stockPnl   = st.stockReal + st.stockUnreal;
   const overallPnl = st.totRealized + st.totUnreal;
+  const hiddenExpirations = Math.max(0, st.expirations.length - EXPIRATION_PREVIEW);
+  const visibleExpirations = showAllExpirations
+    ? st.expirations
+    : st.expirations.slice(0, EXPIRATION_PREVIEW);
 
   return (
     <div className={styles.root}>
@@ -48,12 +56,14 @@ export function Dashboard({ st, holdings, isMobile, onEdit }) {
       <ClosedLots lots={holdings.closedLots} isMobile={isMobile} />
 
       <div className={styles.expirations}>
-        <div className={styles.sectionLabel}>Upcoming Expirations</div>
+        <div className={styles.sectionLabel}>
+          Upcoming Expirations{st.expirations.length ? ` (${st.expirations.length})` : ''}
+        </div>
         {!st.expirations.length && (
           <div style={{ color: M, fontSize: 13 }}>No open option positions.</div>
         )}
         <div className={styles.expirationList}>
-          {st.expirations.slice(0, 10).map(p => {
+          {visibleExpirations.map(p => {
             const col = p.dte <= 7 ? R : p.dte <= 21 ? YL : G;
             return (
               <div key={p.id} className={styles.expirationRow} style={{ background: B, borderColor: D }}>
@@ -81,6 +91,15 @@ export function Dashboard({ st, holdings, isMobile, onEdit }) {
             );
           })}
         </div>
+        {hiddenExpirations > 0 && (
+          <button
+            onClick={() => setShowAllExpirations(v => !v)}
+            className={styles.btnShowAll}
+            style={{ borderColor: D, color: BL }}
+          >
+            {showAllExpirations ? 'Show less' : `Show all ${st.expirations.length}`}
+          </button>
+        )}
       </div>
     </div>
   );

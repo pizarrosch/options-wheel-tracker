@@ -87,3 +87,16 @@
   font-size: 11px;
   background: transparent;
 }
+
+.btnShowAll {
+  margin-top: 8px;
+  width: 100%;
+  border-width: 1px;
+  border-style: solid;
+  background: transparent;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
