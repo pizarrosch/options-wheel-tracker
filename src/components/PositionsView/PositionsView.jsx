@@ -15,7 +15,7 @@ const TABLE_COLS = [
   ['DTE',         'dte'],
   ['Days Held',   'daysHeld'],
   ['Premium/ct',  'premium'],
-  ['Mark',        null],
+  ['Close Price', 'closePrice'],
   ['Contracts',   'contracts'],
   ['Shares',      null],
   ['P&L',         'pnl'],
@@ -84,6 +84,8 @@ export function PositionsView({ filtered, filter, setFilter, sort, setSort, expM
             <option value="pnl:desc">P&amp;L Best</option>
             <option value="pnl:asc">P&amp;L Worst</option>
             <option value="premium:desc">Premium ↓</option>
+            <option value="closePrice:desc">Close Price ↓</option>
+            <option value="closePrice:asc">Close Price ↑</option>
             <option value="status:asc">Status</option>
           </select>
         )}
@@ -161,7 +163,7 @@ export function PositionsView({ filtered, filter, setFilter, sort, setSort, expM
                     </td>
                     <td className={`${styles.td} ${styles.mono}`} style={{ color: M }}>{held !== null ? held + 'd' : '—'}</td>
                     <td className={`${styles.td} ${styles.mono}`} style={{ color: G }}>{pos.premium ? '+$' + NUM(pos.premium) : '—'}</td>
-                    <td className={`${styles.td} ${styles.mono}`} style={{ color: M }}>{pos.currentMark ? '$' + NUM(pos.currentMark) : '—'}</td>
+                    <td className={`${styles.td} ${styles.mono}`} style={{ color: M }}>{pos.closePrice !== '' && pos.closePrice != null ? '$' + NUM(pos.closePrice) : '—'}</td>
                     <td className={`${styles.td} ${styles.mono}`}>
                       {pos.contracts}
                       {pos.phase !== 'Stock' && pos.multiplier && pos.multiplier !== '100' ? ` ×${pos.multiplier}` : ''}

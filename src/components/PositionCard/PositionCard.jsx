@@ -97,10 +97,10 @@ export function PositionCard({ pos, onEdit, onDelete }) {
             </div>
           </div>
         )}
-        {pos.currentMark && (
+        {pos.closePrice !== '' && pos.closePrice != null && (
           <div>
-            <div className={styles.fieldLabel}>Mark</div>
-            <div className={styles.mono} style={{ color: M }}>${NUM(pos.currentMark)}</div>
+            <div className={styles.fieldLabel}>Close Price</div>
+            <div className={styles.mono} style={{ color: M }}>${NUM(pos.closePrice)}</div>
           </div>
         )}
         {held !== null && (

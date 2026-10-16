@@ -225,6 +225,7 @@ export default function App() {
         case 'dte':       { const d = DTE(p.expiry); return d === null ? Infinity : d; }
         case 'daysHeld':  return daysHeld(p) ?? 0;
         case 'premium':   return parseFloat(p.premium) || 0;
+        case 'closePrice': return p.closePrice !== '' && p.closePrice != null ? parseFloat(p.closePrice) : -Infinity;
         case 'contracts': return parseInt(p.contracts) || 0;
         case 'pnl':       return p.status === 'Open' ? unrlPnl(p) : realPnl(p);
         case 'ror':       return rorPct(p) ?? -Infinity;
