@@ -1,5 +1,5 @@
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { C, D, T, M, PC, TC, tooltipStyle } from '../../theme';
+import { PC, TC } from '../../theme';
+import { NUM } from '../../utils/calculations';
 import styles from './PhaseChart.module.css';
 
 export function PhaseChart({ phaseMix }) {
@@ -8,25 +8,17 @@ export function PhaseChart({ phaseMix }) {
   }
   return (
     <div className={styles.card}>
-      <div className={styles.label}>Phase Mix</div>
-      <ResponsiveContainer width="100%" height={200}>
-        <PieChart>
-          <Pie
-            data={phaseMix}
-            cx="50%"
-            cy="50%"
-            innerRadius={44}
-            outerRadius={60}
-            paddingAngle={3}
-            dataKey="value"
-            label={({ name, percent }) => percent > 0.05 ? `${name} ${(percent * 100).toFixed(0)}%` : ''}
-            labelLine={false}
-          >
-            {phaseMix.map((e, i) => <Cell key={e.name} fill={PC[e.name] || TC[i]} />)}
-          </Pie>
-          <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: T }} labelStyle={{ color: T }} />
-        </PieChart>
-      </ResponsiveContainer>
+      <div className={styles.label}>Open Premium by Phase</div>
+      {phaseMix.map((x, i) => (
+        <div key={x.name} className={styles.row}>
+          <span className={styles.rowLabel}>
+            <span className={styles.dot} style={{ background: PC[x.name] || TC[i] }} />
+            {x.name}
+            <span className={styles.count}>×{x.count}</span>
+          </span>
+          <span className={styles.rowValue}>${NUM(x.premium)}</span>
+        </div>
+      ))}
     </div>
   );
 }

@@ -106,9 +106,11 @@ export default function App() {
     const netTheta    = open.reduce((s, p) => s + (parseFloat(p.theta) || 0), 0);
     const netVega     = open.reduce((s, p) => s + (parseFloat(p.vega) || 0), 0);
     const phaseMix    = ['CSP', 'CC', 'Put Spread', 'Call Spread']
-      .map(ph => ({ name: ph, value: openOpts.filter(p => p.phase === ph).length }))
-      .concat({ name: 'Stock', value: holdings.rows.length })
-      .filter(x => x.value > 0);
+      .map(ph => {
+        const rows = openOpts.filter(p => p.phase === ph);
+        return { name: ph, count: rows.length, premium: rows.reduce((s, p) => s + premTot(p), 0) };
+      })
+      .filter(x => x.count > 0);
     const tickMap = {};
     openOpts.forEach(p => { const cap = capRisk(p); tickMap[p.ticker] = (tickMap[p.ticker] || 0) + cap; });
     holdings.rows.forEach(r => { tickMap[r.ticker] = (tickMap[r.ticker] || 0) + r.cost; });
