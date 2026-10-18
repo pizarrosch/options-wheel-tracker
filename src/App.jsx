@@ -112,8 +112,7 @@ export default function App() {
       })
       .filter(x => x.count > 0);
     const tickMap = {};
-    openOpts.forEach(p => { const cap = capRisk(p); tickMap[p.ticker] = (tickMap[p.ticker] || 0) + cap; });
-    holdings.rows.forEach(r => { tickMap[r.ticker] = (tickMap[r.ticker] || 0) + r.cost; });
+    openOpts.filter(p => p.phase === 'CSP').forEach(p => { tickMap[p.ticker] = (tickMap[p.ticker] || 0) + capRisk(p); });
     const tickerConc = Object.entries(tickMap)
       .map(([ticker, capital]) => ({ ticker, capital }))
       .sort((a, b) => b.capital - a.capital);

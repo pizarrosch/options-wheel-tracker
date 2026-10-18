@@ -4,7 +4,7 @@ import styles from './TickerChart.module.css';
 
 export function TickerChart({ tickerConc }) {
   if (!tickerConc.length) {
-    return <div className={styles.empty}>No capital deployed</div>;
+    return <div className={styles.empty}>No open CSPs</div>;
   }
   return (
     <div className={styles.card}>
